@@ -2,7 +2,7 @@ package main
 
 import (
 	"NS/commands"
-	config2 "NS/config"
+	"NS/config"
 	"encoding/json"
 	"fmt"
 	"github.com/bwmarrin/discordgo"
@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	config    = config2.Config{}
+	_config   = config.Config{}
 	Logger    *zap.Logger
 	discord   *discordgo.Session
 	_commands = []*discordgo.ApplicationCommand{
@@ -37,39 +37,39 @@ func init() {
 	file, err := os.ReadFile("config.json")
 	if err != nil {
 		fmt.Print("Enter bot token: ")
-		if _, err := fmt.Scanln(&config.Token); err != nil {
+		if _, err := fmt.Scanln(&_config.Token); err != nil {
 			log.Fatal("Error during Scanln(): ", err)
 		}
 		fmt.Print("Enter api user: ")
-		if _, err := fmt.Scanln(&config.ApiUser); err != nil {
+		if _, err := fmt.Scanln(&_config.ApiUser); err != nil {
 			log.Fatal("Error during Scanln(): ", err)
 		}
 		fmt.Print("Enter api key: ")
-		if _, err := fmt.Scanln(&config.ApiKey); err != nil {
+		if _, err := fmt.Scanln(&_config.ApiKey); err != nil {
 			log.Fatal("Error during Scanln(): ", err)
 		}
 		fmt.Print("Enter user name: ")
-		if _, err := fmt.Scanln(&config.UserName); err != nil {
+		if _, err := fmt.Scanln(&_config.UserName); err != nil {
 			log.Fatal("Error during Scanln(): ", err)
 		}
 		fmt.Print("Enter client ip: ")
-		if _, err := fmt.Scanln(&config.ClientIP); err != nil {
+		if _, err := fmt.Scanln(&_config.ClientIP); err != nil {
 			log.Fatal("Error during Scanln(): ", err)
 		}
 		fmt.Print("Enter default password: ")
-		if _, err := fmt.Scanln(&config.DefaultPassword); err != nil {
+		if _, err := fmt.Scanln(&_config.DefaultPassword); err != nil {
 			log.Fatal("Error during Scanln(): ", err)
 		}
 		configJson()
 		return
 	}
-	if err := json.Unmarshal(file, &config); err != nil {
+	if err := json.Unmarshal(file, &_config); err != nil {
 		log.Fatal("Error during Unmarshal(): ", err)
 	}
 }
 
 func configJson() {
-	marshal, err := json.Marshal(&config)
+	marshal, err := json.Marshal(&_config)
 	if err != nil {
 		log.Fatal("Error during Marshal(): ", err)
 		return
@@ -91,7 +91,7 @@ func init() {
 // init discord
 func init() {
 	var err error
-	discord, err = discordgo.New("Bot " + config.Token)
+	discord, err = discordgo.New("Bot " + _config.Token)
 	if err != nil {
 		Logger.Fatal("Error creating Discord session", zap.Error(err))
 		return
@@ -117,10 +117,10 @@ func slashCommandInteraction(session *discordgo.Session, interaction *discordgo.
 }
 
 func main() {
-	commands.CreateDomain.Config = &config
-	commands.NS.Config = &config
-	commands.Add.Config = &config
-	commands.CreateEmail.Config = &config
+	commands.CreateDomain.Config = &_config
+	commands.NS.Config = &_config
+	commands.Add.Config = &_config
+	commands.CreateEmail.Config = &_config
 	if err := discord.Open(); err != nil {
 		Logger.Fatal("Error opening connection", zap.Error(err))
 		return
