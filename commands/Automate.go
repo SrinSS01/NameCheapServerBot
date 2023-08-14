@@ -43,13 +43,11 @@ var Automate = AutomateCommand{
 				Type:        discordgo.ApplicationCommandOptionAttachment,
 				Name:        "file",
 				Description: "The file to upload",
-				Required:    true,
 			},
 			{
 				Type:        discordgo.ApplicationCommandOptionString,
 				Name:        "nameservers",
 				Description: "The name servers to set",
-				Required:    true,
 			},
 			{
 				Type:        discordgo.ApplicationCommandOptionString,
@@ -70,15 +68,22 @@ func (c *AutomateCommand) Execute(session *discordgo.Session, interaction *disco
 	options := applicationCommandData.Options
 	domain := options[0].StringValue()
 	email := options[1].StringValue()
-	fileId := options[2].Value.(string)
-	nameservers := options[3].StringValue()
+	var fileId string
+	var nameservers string
 	password := c.Config.DefaultPassword
 	parts := strings.SplitN(domain, ".", 2)
-	attachment := applicationCommandData.Resolved.Attachments[fileId]
-	fileName := attachment.Filename
-	fileURL := attachment.URL
 
-	if len(options) == 5 {
+	if len(options) > 2 {
+		for _, option := range options[2:] {
+			switch option.Name {
+			case "file":
+				fileId = option.StringValue()
+			case "nameservers":
+				nameservers = option.StringValue()
+			case "password":
+				password = option.StringValue()
+			}
+		}
 		password = options[4].StringValue()
 	}
 	if len(strings.TrimSpace(email)) == 0 {
@@ -162,24 +167,28 @@ func (c *AutomateCommand) Execute(session *discordgo.Session, interaction *disco
 				return
 			}
 			if RegisterDomain(c.Config, domain, msg, session) {
+				// nameservers
+				if len(nameservers) != 0 {
+					sld, tld := parts[0], parts[1]
+					_url := fmt.Sprintf("https://api.namecheap.com/xml.response?ApiUser=%s&ApiKey=%s&UserName=%s&Command=namecheap.domains.dns.setCustom&ClientIp=%s&SLD=%s&TLD=%s&NameServers=%s", apiUser, apiKey, userName, clientIP, sld, tld, nameservers)
+					resp, err := resty.New().R().Get(_url)
+					if err != nil {
+						msg, _ = session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("Error making the request: %s", err.Error()), msg.Reference())
+						return
+					}
+					err = xml.Unmarshal(resp.Body(), &apiResponse)
+					if err != nil {
+						msg, _ = session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("Error parsing the response: %s", err.Error()), msg.Reference())
+						return
+					}
+					if apiResponse.Status == "ERROR" {
+						msg, _ = session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("Error in API response: %s", apiResponse.Status), msg.Reference())
+						return
+					}
+					msg, _ = session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("Name server changed successfully"), msg.Reference())
+				}
+
 				// addon
-				sld, tld := parts[0], parts[1]
-				_url := fmt.Sprintf("https://api.namecheap.com/xml.response?ApiUser=%s&ApiKey=%s&UserName=%s&Command=namecheap.domains.dns.setCustom&ClientIp=%s&SLD=%s&TLD=%s&NameServers=%s", apiUser, apiKey, userName, clientIP, sld, tld, nameservers)
-				resp, err := resty.New().R().Get(_url)
-				if err != nil {
-					msg, _ = session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("Error making the request: %s", err.Error()), msg.Reference())
-					return
-				}
-				err = xml.Unmarshal(resp.Body(), &apiResponse)
-				if err != nil {
-					msg, _ = session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("Error parsing the response: %s", err.Error()), msg.Reference())
-					return
-				}
-				if apiResponse.Status == "ERROR" {
-					msg, _ = session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("Error in API response: %s", apiResponse.Status), msg.Reference())
-					return
-				}
-				msg, _ = session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("Name server changed successfully"), msg.Reference())
 				addonURL := fmt.Sprintf("https://199.188.203.195:2083/json-api/cpanel?cpanel_jsonapi_func=addaddondomain&cpanel_jsonapi_module=AddonDomain&cpanel_jsonapi_version=2&newdomain=%s&subdomain=%s&dir=/home/swapped2/%s", escapedDomain, escapedDomain, escapedDomain)
 				response, err := util.MakeRequest("GET", addonURL, "", nil)
 				if err != nil {
@@ -269,58 +278,64 @@ func (c *AutomateCommand) Execute(session *discordgo.Session, interaction *disco
 							_, _ = session.ChannelMessageSendReply(msg.ChannelID, "Error casting cpanelresult to type map[string]interface{}, ```json\n"+string(response)+"\n```", msg.Reference())
 						}
 					}
+
 					// upload file
-					res, err := http.DefaultClient.Get(fileURL)
-					if err != nil {
-						msg, _ = session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("Error during http.Get(): %s", err.Error()), msg.Reference())
-						return
-					}
-					body := &bytes.Buffer{}
-					writer := multipart.NewWriter(body)
-					part, err := writer.CreateFormFile("file-1", fileName)
-					if err != nil {
-						msg, _ = session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("Error during writer.CreateFormFile(): %s", err.Error()), msg.Reference())
-						return
-					}
-					_, err = io.Copy(part, res.Body)
-					uploadURL := fmt.Sprintf("https://199.188.203.195:2083/execute/Fileman/upload_files?dir=/home/swapped2/%s", escapedDomain)
-					response, err := util.MakeRequest("POST", uploadURL, writer.FormDataContentType(), body)
-					if err != nil {
-						msg, _ = session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("Error during util.MakeRequest(): %s", err.Error()), msg.Reference())
-						return
-					}
-					var fileUploadResponse ns.FileUploadResponse
-					err = json.Unmarshal(response, &fileUploadResponse)
-					if err != nil {
-						msg, _ = session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("Error during json.Unmarshal(): %s", err.Error()), msg.Reference())
-						return
-					}
-					if len(fileUploadResponse.Errors) > 0 {
-						var contentBuilder strings.Builder
-						for i, errors := range fileUploadResponse.Errors {
-							contentBuilder.WriteString(fmt.Sprintf("Error `%d`: ```\n%s```\n", i, errors))
+					if len(fileId) != 0 {
+						attachment := applicationCommandData.Resolved.Attachments[fileId]
+						fileName := attachment.Filename
+						fileURL := attachment.URL
+						res, err := http.DefaultClient.Get(fileURL)
+						if err != nil {
+							msg, _ = session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("Error during http.Get(): %s", err.Error()), msg.Reference())
+							return
 						}
-						msg, _ = session.ChannelMessageSendReply(msg.ChannelID, contentBuilder.String(), msg.Reference())
-						return
-					}
-					if data, ok := fileUploadResponse.Data.(map[string]interface{}); ok {
-						if uploads, ok := data["uploads"].([]interface{}); ok {
-							for _, upload := range uploads {
-								if upload, ok := upload.(map[string]interface{}); ok {
-									if upload["status"].(float64) == 0 {
-										msg, _ = session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("Failed to upload file: %s", upload["reason"].(string)), msg.Reference())
+						body := &bytes.Buffer{}
+						writer := multipart.NewWriter(body)
+						part, err := writer.CreateFormFile("file-1", fileName)
+						if err != nil {
+							msg, _ = session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("Error during writer.CreateFormFile(): %s", err.Error()), msg.Reference())
+							return
+						}
+						_, err = io.Copy(part, res.Body)
+						uploadURL := fmt.Sprintf("https://199.188.203.195:2083/execute/Fileman/upload_files?dir=/home/swapped2/%s", escapedDomain)
+						response, err := util.MakeRequest("POST", uploadURL, writer.FormDataContentType(), body)
+						if err != nil {
+							msg, _ = session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("Error during util.MakeRequest(): %s", err.Error()), msg.Reference())
+							return
+						}
+						var fileUploadResponse ns.FileUploadResponse
+						err = json.Unmarshal(response, &fileUploadResponse)
+						if err != nil {
+							msg, _ = session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("Error during json.Unmarshal(): %s", err.Error()), msg.Reference())
+							return
+						}
+						if len(fileUploadResponse.Errors) > 0 {
+							var contentBuilder strings.Builder
+							for i, errors := range fileUploadResponse.Errors {
+								contentBuilder.WriteString(fmt.Sprintf("Error `%d`: ```\n%s```\n", i, errors))
+							}
+							msg, _ = session.ChannelMessageSendReply(msg.ChannelID, contentBuilder.String(), msg.Reference())
+							return
+						}
+						if data, ok := fileUploadResponse.Data.(map[string]interface{}); ok {
+							if uploads, ok := data["uploads"].([]interface{}); ok {
+								for _, upload := range uploads {
+									if upload, ok := upload.(map[string]interface{}); ok {
+										if upload["status"].(float64) == 0 {
+											msg, _ = session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("Failed to upload file: %s", upload["reason"].(string)), msg.Reference())
+										} else {
+											msg, _ = session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("Successfully uploaded file: %s", fileName), msg.Reference())
+										}
 									} else {
-										msg, _ = session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("Successfully uploaded file: %s", fileName), msg.Reference())
+										msg, _ = session.ChannelMessageSendReply(msg.ChannelID, "Unable to cast `upload` to `map[string]interface{}`", msg.Reference())
 									}
-								} else {
-									msg, _ = session.ChannelMessageSendReply(msg.ChannelID, "Unable to cast `upload` to `map[string]interface{}`", msg.Reference())
 								}
+							} else {
+								msg, _ = session.ChannelMessageSendReply(msg.ChannelID, "Unable to cast `uploads` to `[]interface{}`", msg.Reference())
 							}
 						} else {
-							msg, _ = session.ChannelMessageSendReply(msg.ChannelID, "Unable to cast `uploads` to `[]interface{}`", msg.Reference())
+							msg, _ = session.ChannelMessageSendReply(msg.ChannelID, "Unable to cast `data` to `map[string]interface{}`", msg.Reference())
 						}
-					} else {
-						msg, _ = session.ChannelMessageSendReply(msg.ChannelID, "Unable to cast `data` to `map[string]interface{}`", msg.Reference())
 					}
 				} else {
 					msg, _ = session.ChannelMessageSendReply(msg.ChannelID, "Error casting cpanelresult to type map[string]interface{}, ```json\n"+string(response)+"```", msg.Reference())
