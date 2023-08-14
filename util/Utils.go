@@ -1,11 +1,14 @@
 package util
 
 import (
+	"NS/config"
 	"crypto/tls"
 	"fmt"
 	"io"
 	"net/http"
 )
+
+var Config *config.Config
 
 func MakeRequest(method, url, contentType string, body io.Reader) ([]byte, error) {
 	req, err := http.NewRequest(method, url, body)
@@ -13,7 +16,7 @@ func MakeRequest(method, url, contentType string, body io.Reader) ([]byte, error
 		return nil, err
 	}
 
-	req.SetBasicAuth("XXXXXXX", "XXXXXX")
+	req.SetBasicAuth(Config.BasicAuth.Username, Config.BasicAuth.Password)
 	if contentType != "" {
 		req.Header.Set("Content-Type", contentType)
 	}

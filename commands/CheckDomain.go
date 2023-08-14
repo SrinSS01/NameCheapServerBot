@@ -10,33 +10,27 @@ import (
 	"strings"
 )
 
-type NSCommand struct {
+type CheckDomainCommand struct {
 	Command *discordgo.ApplicationCommand
 	Config  *config.Config
 }
 
-var NS = NSCommand{
+var CheckDomain = CheckDomainCommand{
 	Command: &discordgo.ApplicationCommand{
-		Name:        "ns",
-		Description: "change the name server",
+		Name:        "checkdomain",
+		Description: "check if a domain is available",
 		Options: []*discordgo.ApplicationCommandOption{
 			{
 				Type:        discordgo.ApplicationCommandOptionString,
 				Name:        "domain",
-				Description: "The domain to change the name server",
-				Required:    true,
-			},
-			{
-				Type:        discordgo.ApplicationCommandOptionString,
-				Name:        "nameservers",
-				Description: "The name servers to set",
+				Description: "The domain to check",
 				Required:    true,
 			},
 		},
 	},
 }
 
-func (c *NSCommand) Execute(session *discordgo.Session, interaction *discordgo.InteractionCreate) {
+func (c *CheckDomainCommand) Execute(session *discordgo.Session, interaction *discordgo.InteractionCreate) {
 	var err error
 	apiUser := c.Config.ApiUser
 	apiKey := c.Config.ApiKey
@@ -44,10 +38,7 @@ func (c *NSCommand) Execute(session *discordgo.Session, interaction *discordgo.I
 	clientIP := c.Config.ClientIP
 	options := interaction.ApplicationCommandData().Options
 	domain := options[0].StringValue()
-	nameservers := options[1].StringValue()
-	parts := strings.SplitN(domain, ".", 2)
-
-	if len(strings.TrimSpace(domain)) == 0 || len(parts) != 2 {
+	if len(strings.TrimSpace(domain)) == 0 {
 		err = session.InteractionRespond(interaction.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
@@ -60,19 +51,7 @@ func (c *NSCommand) Execute(session *discordgo.Session, interaction *discordgo.I
 		}
 		return
 	}
-	if len(strings.TrimSpace(nameservers)) == 0 {
-		err = session.InteractionRespond(interaction.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "Please enter a valid name servers",
-				Flags:   discordgo.MessageFlagsEphemeral,
-			},
-		})
-		if err != nil {
-			return
-		}
-		return
-	}
+	_url := fmt.Sprintf("https://api.namecheap.com/xml.response?ApiUser=%s&ApiKey=%s&UserName=%s&Command=namecheap.domains.check&ClientIp=%s&DomainList=%s", apiUser, apiKey, userName, clientIP, domain)
 	// discord defer reply
 	err = session.InteractionRespond(interaction.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
@@ -80,9 +59,6 @@ func (c *NSCommand) Execute(session *discordgo.Session, interaction *discordgo.I
 	if err != nil {
 		return
 	}
-
-	sld, tld := parts[0], parts[1]
-	_url := fmt.Sprintf("https://api.namecheap.com/xml.response?ApiUser=%s&ApiKey=%s&UserName=%s&Command=namecheap.domains.dns.setCustom&ClientIp=%s&SLD=%s&TLD=%s&NameServers=%s", apiUser, apiKey, userName, clientIP, sld, tld, nameservers)
 	resp, err := resty.New().R().Get(_url)
 	if err != nil {
 		content := fmt.Sprintf("Error making the request: %s", err.Error())
@@ -93,7 +69,8 @@ func (c *NSCommand) Execute(session *discordgo.Session, interaction *discordgo.I
 	}
 
 	var apiResponse ns.ApiResponse
-	err = xml.Unmarshal(resp.Body(), &apiResponse)
+	body := resp.Body()
+	err = xml.Unmarshal(body, &apiResponse)
 	if err != nil {
 		content := fmt.Sprintf("Error parsing the response: %s", err.Error())
 		_, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
@@ -102,16 +79,22 @@ func (c *NSCommand) Execute(session *discordgo.Session, interaction *discordgo.I
 		return
 	}
 
-	if apiResponse.Status == "ERROR" {
-		content := fmt.Sprintf("Error in API response: %s", apiResponse.Status)
+	if apiResponse.Status != "OK" {
+		content := fmt.Sprintf("Error in API response: \n```xml\n%s\n```", string(body))
 		_, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
 			Content: &content,
 		})
 		return
 	}
+	for _, result := range apiResponse.CommandResponse.DomainCheckData {
+		availability := "available"
+		if !result.Available {
+			availability = "unavailable"
+		}
+		content := fmt.Sprintf("Domain: %s, Availability: %s", result.Domain, availability)
 
-	content := fmt.Sprintf("Name server changed successfully")
-	_, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
-		Content: &content,
-	})
+		_, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
+			Content: &content,
+		})
+	}
 }

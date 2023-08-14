@@ -1,7 +1,6 @@
 package commands
 
 import (
-	"NS/config"
 	"NS/ns"
 	"NS/util"
 	"encoding/json"
@@ -12,7 +11,6 @@ import (
 
 type AddCommand struct {
 	Command *discordgo.ApplicationCommand
-	Config  *config.Config
 }
 
 var Add = AddCommand{
@@ -73,16 +71,46 @@ func (c *AddCommand) Execute(session *discordgo.Session, interaction *discordgo.
 		})
 		return
 	}
-	data := addDomainResponse.Cpanelresult.Data
-	if data.Result == "0" {
-		content := "Failed to add domain: " + data.Reason
+	var content string
+	if cpanelresult, ok := addDomainResponse.Cpanelresult.(map[string]interface{}); ok {
+		if data, ok := cpanelresult["data"].(map[string]interface{}); ok {
+			if data["result"].(string) == "0" {
+				content = "Failed to add domain: " + data["reason"].(string)
+				_, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
+					Content: &content,
+				})
+				return
+			}
+			content := "Successfully added domain: " + domain
+			_, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
+				Content: &content,
+			})
+		} else if datas, ok := cpanelresult["data"].([]interface{}); ok {
+			for _, data := range datas {
+				if data.(map[string]interface{})["result"].(float64) == 0 {
+					content = "Failed to add domain: " + data.(map[string]interface{})["reason"].(string)
+					_, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
+						Content: &content,
+					})
+					return
+				}
+				content := "Successfully added domain: " + domain
+				_, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
+					Content: &content,
+				})
+			}
+		} else {
+			content := "Error casting data to type []interface{} or map[string]interface{}"
+			_, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
+				Content: &content,
+			})
+			return
+		}
+	} else {
+		content := "Error casting cpanelresult to type map[string]interface{}, ```json\n" + string(response) + "```"
 		_, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
 			Content: &content,
 		})
 		return
 	}
-	content := "Successfully added domain: " + domain
-	_, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
-		Content: &content,
-	})
 }

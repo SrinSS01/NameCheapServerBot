@@ -69,7 +69,8 @@ func (c *CreateDomainCommand) Execute(session *discordgo.Session, interaction *d
 	}
 
 	var apiResponse ns.ApiResponse
-	err = xml.Unmarshal(resp.Body(), &apiResponse)
+	body := resp.Body()
+	err = xml.Unmarshal(body, &apiResponse)
 	if err != nil {
 		content := fmt.Sprintf("Error parsing the response: %s", err.Error())
 		_, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
@@ -79,7 +80,7 @@ func (c *CreateDomainCommand) Execute(session *discordgo.Session, interaction *d
 	}
 
 	if apiResponse.Status != "OK" {
-		content := fmt.Sprintf("Error in API response: %s", apiResponse.Status)
+		content := fmt.Sprintf("Error in API response: \n```xml\n%s\n```", string(body))
 		_, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
 			Content: &content,
 		})
@@ -101,21 +102,21 @@ func (c *CreateDomainCommand) Execute(session *discordgo.Session, interaction *d
 			if err != nil {
 				return
 			}
-			c.registerDomain(result.Domain, msg, session)
+			RegisterDomain(c.Config, result.Domain, msg, session)
 		}
 	}
 }
 
-func (c *CreateDomainCommand) registerDomain(domain string, msg *discordgo.Message, session *discordgo.Session) {
+func RegisterDomain(c *config.Config, domain string, msg *discordgo.Message, session *discordgo.Session) bool {
 	// Implement the domain registration API call here using the HTTP POST method.
 	// Make an HTTP request to the NameCheap API for domain registration.
 
 	_url := "https://api.namecheap.com/xml.response"
 	params := map[string]string{
-		"ApiUser":    c.Config.ApiUser,
-		"ApiKey":     c.Config.ApiKey,
-		"UserName":   c.Config.UserName,
-		"ClientIp":   c.Config.ClientIP,
+		"ApiUser":    c.ApiUser,
+		"ApiKey":     c.ApiKey,
+		"UserName":   c.UserName,
+		"ClientIp":   c.ClientIP,
 		"DomainName": domain,
 		"Command":    "namecheap.domains.create",
 
@@ -221,23 +222,24 @@ func (c *CreateDomainCommand) registerDomain(domain string, msg *discordgo.Messa
 	resp, err := resty.New().R().SetFormData(params).Post(_url)
 	if err != nil {
 		_, _ = session.ChannelMessageSendReply(msg.ChannelID, "Error registering the domain: "+err.Error(), msg.Reference())
-		return
+		return false
 	}
 
 	var apiResponse ns.ApiResponse
 	err = xml.Unmarshal(resp.Body(), &apiResponse)
 	if err != nil {
 		_, _ = session.ChannelMessageSendReply(msg.ChannelID, "Error parsing the registration response: "+err.Error(), msg.Reference())
-		return
+		return false
 	}
 
 	if apiResponse.Status != "OK" {
 		_, _ = session.ChannelMessageSendReply(msg.ChannelID, "Error in registration API response: "+apiResponse.Status, msg.Reference())
-		return
+		return false
 	}
 	if apiResponse.CommandResponse.DomainCreateResult.Registered {
 		content := fmt.Sprintf("Domain %s has been registered successfully!\n", domain)
 		_, _ = session.ChannelMessageSendReply(msg.ChannelID, content, msg.Reference())
+		return true
 	} else {
 		var builder strings.Builder
 		builder.WriteString("Domain registration failed. Please check the response details.\n")
@@ -246,10 +248,11 @@ func (c *CreateDomainCommand) registerDomain(domain string, msg *discordgo.Messa
 			for _, err := range apiResponse.CommandResponse.DomainCreateResult.Errors {
 				_, err := fmt.Fprintf(&builder, "Code: %d, Description: %s\n", err.Code, err.Description)
 				if err != nil {
-					return
+					return false
 				}
 			}
 			_, _ = session.ChannelMessageSendReply(msg.ChannelID, builder.String(), msg.Reference())
 		}
+		return false
 	}
 }

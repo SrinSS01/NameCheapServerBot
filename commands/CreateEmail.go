@@ -47,11 +47,11 @@ func (c *CreateEmailCommand) Execute(session *discordgo.Session, interaction *di
 	domain := options[0].StringValue()
 	email := options[1].StringValue()
 	password := c.Config.DefaultPassword
-	localPart := strings.Split(domain, "@")[0]
+	localPart := email
 	if len(options) == 3 {
 		password = options[2].StringValue()
 	}
-	if len(email) == 0 {
+	if len(strings.TrimSpace(email)) == 0 || len(strings.TrimSpace(domain)) == 0 || len(strings.TrimSpace(password)) == 0 {
 		err = session.InteractionRespond(interaction.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
@@ -84,15 +84,42 @@ func (c *CreateEmailCommand) Execute(session *discordgo.Session, interaction *di
 		return
 	}
 
-	data := emailCreateResponse.Cpanelresult.Data
 	var content string
-	if data.Result == "0" {
-		content = fmt.Sprintf("Failed to create email account: %s", data.Reason)
-		_, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
-			Content: &content,
-		})
+	if cpanelresult, ok := emailCreateResponse.Cpanelresult.(map[string]interface{}); ok {
+		if datas, _ok := cpanelresult["data"].([]interface{}); _ok {
+			for _, data := range datas {
+				if data.(map[string]interface{})["result"].(float64) == 0 {
+					content = fmt.Sprintf("Failed to create email account: %s", data.(map[string]interface{})["reason"].(string))
+					_, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
+						Content: &content,
+					})
+				} else {
+					content = fmt.Sprintf("Successfully created email account: %s", localPart+"@"+domain)
+					_, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
+						Content: &content,
+					})
+				}
+			}
+		} else if data, __ok := cpanelresult["data"].(map[string]interface{}); __ok {
+			if data["result"].(string) == "0" {
+				content = fmt.Sprintf("Failed to create email account: %s", data["reason"].(string))
+				_, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
+					Content: &content,
+				})
+			} else {
+				content = fmt.Sprintf("Successfully created email account: %s", localPart+"@"+domain)
+				_, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
+					Content: &content,
+				})
+			}
+		} else {
+			content = fmt.Sprintf("Error casting data to type `map[string]interface{}` or `[]interface{}`, ```json\n%s\n```", cpanelresult["data"])
+			_, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
+				Content: &content,
+			})
+		}
 	} else {
-		content = fmt.Sprintf("Successfully created email account: %s", localPart+"@"+domain)
+		content = "Error casting cpanelresult to type map[string]interface{}, ```json\n" + string(response) + "\n```"
 		_, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
 			Content: &content,
 		})

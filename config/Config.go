@@ -7,6 +7,10 @@ type Config struct {
 	UserName        string `json:"userName"`
 	ClientIP        string `json:"clientIP"`
 	DefaultPassword string `json:"defaultPassword"`
+	BasicAuth       struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	} `json:"basicAuth"`
 }
 
 const (

@@ -33,7 +33,7 @@ func (c *SSLCommand) Execute(session *discordgo.Session, interaction *discordgo.
 	domain := options[0].StringValue()
 
 	// Check if SSL is installed
-	if isSSLInstalled(domain) {
+	if IsSSLInstalled(domain) {
 		// SSL is installed
 		err := session.InteractionRespond(interaction.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
@@ -58,7 +58,7 @@ func (c *SSLCommand) Execute(session *discordgo.Session, interaction *discordgo.
 	}
 }
 
-func isSSLInstalled(domain string) bool {
+func IsSSLInstalled(domain string) bool {
 	// Construct the URL for WHM's SSL installation check (adjust as per WHM's API documentation)
 	url := config.WHMHost + "/json-api/listaccts?api.version=1&search=" + domain + "&searchtype=domain"
 

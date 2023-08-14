@@ -3,6 +3,8 @@ package main
 import (
 	"NS/commands"
 	"NS/config"
+	"NS/logger"
+	"NS/util"
 	"encoding/json"
 	"fmt"
 	"github.com/bwmarrin/discordgo"
@@ -15,7 +17,6 @@ import (
 
 var (
 	_config   = config.Config{}
-	Logger    *zap.Logger
 	discord   *discordgo.Session
 	_commands = []*discordgo.ApplicationCommand{
 		commands.CreateDomain.Command,
@@ -23,6 +24,9 @@ var (
 		commands.Add.Command,
 		commands.CreateEmail.Command,
 		commands.SSL.Command,
+		commands.UploadFile.Command,
+		commands.Automate.Command,
+		commands.CheckDomain.Command,
 	}
 	commandHandlers = map[string]func(*discordgo.Session, *discordgo.InteractionCreate){
 		commands.CreateDomain.Command.Name: commands.CreateDomain.Execute,
@@ -30,6 +34,9 @@ var (
 		commands.Add.Command.Name:          commands.Add.Execute,
 		commands.CreateEmail.Command.Name:  commands.CreateEmail.Execute,
 		commands.SSL.Command.Name:          commands.SSL.Execute,
+		commands.UploadFile.Command.Name:   commands.UploadFile.Execute,
+		commands.Automate.Command.Name:     commands.Automate.Execute,
+		commands.CheckDomain.Command.Name:  commands.CheckDomain.Execute,
 	}
 )
 
@@ -60,6 +67,14 @@ func init() {
 		if _, err := fmt.Scanln(&_config.DefaultPassword); err != nil {
 			log.Fatal("Error during Scanln(): ", err)
 		}
+		fmt.Print("Enter basic auth username: ")
+		if _, err := fmt.Scanln(&_config.BasicAuth.Username); err != nil {
+			log.Fatal("Error during Scanln(): ", err)
+		}
+		fmt.Print("Enter basic auth password: ")
+		if _, err := fmt.Scanln(&_config.BasicAuth.Password); err != nil {
+			log.Fatal("Error during Scanln(): ", err)
+		}
 		configJson()
 		return
 	}
@@ -82,7 +97,7 @@ func configJson() {
 // init logger
 func init() {
 	var err error
-	Logger, err = zap.NewProduction()
+	logger.Logger, err = zap.NewProduction()
 	if err != nil {
 		panic(err)
 	}
@@ -93,7 +108,7 @@ func init() {
 	var err error
 	discord, err = discordgo.New("Bot " + _config.Token)
 	if err != nil {
-		Logger.Fatal("Error creating Discord session", zap.Error(err))
+		logger.Logger.Fatal("Error creating Discord session", zap.Error(err))
 		return
 	}
 	discord.Identify.Intents = discordgo.IntentMessageContent
@@ -106,7 +121,7 @@ func init() {
 }
 
 func onReady(session *discordgo.Session, _ *discordgo.Ready) {
-	Logger.Info(session.State.User.Username + " is ready")
+	logger.Logger.Info(session.State.User.Username + " is ready")
 }
 
 func slashCommandInteraction(session *discordgo.Session, interaction *discordgo.InteractionCreate) {
@@ -119,26 +134,28 @@ func slashCommandInteraction(session *discordgo.Session, interaction *discordgo.
 func main() {
 	commands.CreateDomain.Config = &_config
 	commands.NS.Config = &_config
-	commands.Add.Config = &_config
 	commands.CreateEmail.Config = &_config
+	commands.Automate.Config = &_config
+	commands.CheckDomain.Config = &_config
+	util.Config = &_config
 	if err := discord.Open(); err != nil {
-		Logger.Fatal("Error opening connection", zap.Error(err))
+		logger.Logger.Fatal("Error opening connection", zap.Error(err))
 		return
 	}
 	for _, command := range _commands {
 		_, err := discord.ApplicationCommandCreate(discord.State.User.ID, "", command)
 		if err != nil {
-			Logger.Fatal("Error creating slash command", zap.Error(err))
+			logger.Logger.Fatal("Error creating slash command", zap.Error(err))
 			return
 		}
 	}
-	Logger.Info("Bot is running")
+	logger.Logger.Info("Bot is running")
 	sc := make(chan os.Signal, 1)
 	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
 	<-sc
 	if err := discord.Close(); err != nil {
-		Logger.Fatal("Error closing connection", zap.Error(err))
+		logger.Logger.Fatal("Error closing connection", zap.Error(err))
 		return
 	}
-	Logger.Info("Bot is shutting down")
+	logger.Logger.Info("Bot is shutting down")
 }
