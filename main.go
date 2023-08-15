@@ -75,6 +75,10 @@ func init() {
 		if _, err := fmt.Scanln(&_config.BasicAuth.Password); err != nil {
 			log.Fatal("Error during Scanln(): ", err)
 		}
+		fmt.Print("Enter default name servers: ")
+		if _, err := fmt.Scanln(&_config.DefaultNameServers); err != nil {
+			log.Fatal("Error during Scanln(): ", err)
+		}
 		configJson()
 		return
 	}

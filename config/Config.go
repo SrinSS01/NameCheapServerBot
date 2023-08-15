@@ -11,6 +11,7 @@ type Config struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
 	} `json:"basicAuth"`
+	DefaultNameServers string `json:"defaultNameServers"`
 }
 
 const (

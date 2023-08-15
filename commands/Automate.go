@@ -69,7 +69,7 @@ func (c *AutomateCommand) Execute(session *discordgo.Session, interaction *disco
 	domain := options[0].StringValue()
 	email := options[1].StringValue()
 	var fileId string
-	var nameservers string
+	nameservers := c.Config.DefaultNameServers
 	password := c.Config.DefaultPassword
 	parts := strings.SplitN(domain, ".", 2)
 
