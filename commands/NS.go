@@ -30,7 +30,6 @@ var NS = NSCommand{
 				Type:        discordgo.ApplicationCommandOptionString,
 				Name:        "nameservers",
 				Description: "The name servers to set",
-				Required:    true,
 			},
 		},
 	},
@@ -44,8 +43,12 @@ func (c *NSCommand) Execute(session *discordgo.Session, interaction *discordgo.I
 	clientIP := c.Config.ClientIP
 	options := interaction.ApplicationCommandData().Options
 	domain := options[0].StringValue()
-	nameservers := options[1].StringValue()
+	nameservers := c.Config.DefaultNameServers
 	parts := strings.SplitN(domain, ".", 2)
+
+	if len(options) > 1 {
+		nameservers = options[1].StringValue()
+	}
 
 	if len(strings.TrimSpace(domain)) == 0 || len(parts) != 2 {
 		err = session.InteractionRespond(interaction.Interaction, &discordgo.InteractionResponse{
