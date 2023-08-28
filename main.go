@@ -27,6 +27,7 @@ var (
 		commands.UploadFile.Command,
 		commands.Automate.Command,
 		commands.CheckDomain.Command,
+		commands.Redirect.Command,
 	}
 	commandHandlers = map[string]func(*discordgo.Session, *discordgo.InteractionCreate){
 		commands.CreateDomain.Command.Name: commands.CreateDomain.Execute,
@@ -37,6 +38,7 @@ var (
 		commands.UploadFile.Command.Name:   commands.UploadFile.Execute,
 		commands.Automate.Command.Name:     commands.Automate.Execute,
 		commands.CheckDomain.Command.Name:  commands.CheckDomain.Execute,
+		commands.Redirect.Command.Name:     commands.Redirect.Execute,
 	}
 )
 
@@ -141,6 +143,7 @@ func main() {
 	commands.CreateEmail.Config = &_config
 	commands.Automate.Config = &_config
 	commands.CheckDomain.Config = &_config
+	commands.Redirect.Config = &_config
 	util.Config = &_config
 	if err := discord.Open(); err != nil {
 		logger.Logger.Fatal("Error opening connection", zap.Error(err))
