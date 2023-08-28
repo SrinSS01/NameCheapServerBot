@@ -79,14 +79,14 @@ func (c *AutomateCommand) Execute(session *discordgo.Session, interaction *disco
 		for _, option := range options[2:] {
 			switch option.Name {
 			case "file":
-				fileId = option.StringValue()
+				fileId = option.Value.(string)
 			case "nameservers":
 				nameservers = option.StringValue()
 			case "password":
 				password = option.StringValue()
 			}
 		}
-		password = options[4].StringValue()
+		//password = options[4].StringValue()
 	}
 	if len(strings.TrimSpace(email)) == 0 {
 		_ = session.InteractionRespond(interaction.Interaction, &discordgo.InteractionResponse{
@@ -342,15 +342,15 @@ func (c *AutomateCommand) Execute(session *discordgo.Session, interaction *disco
 
 					// redirect
 					redirectURL := "https://" + domain
-					url := fmt.Sprintf("https://%s:%s@199.188.203.195:2083/execute/Mime/add_redirect?domain=%s&redirect=%s&redirect_wildcard=0&redirect_www=0&src=/&type=permanent", "swapped2", "Mmady5113x", domain, redirectURL)
+					_url := fmt.Sprintf("https://%s:%s@199.188.203.195:2083/execute/Mime/add_redirect?domain=%s&redirect=%s&redirect_wildcard=0&redirect_www=0&src=/&type=permanent", "swapped2", "Mmady5113x", domain, redirectURL)
 					// Create a new HTTP client that skips SSL certificate verification
 					tr := &http.Transport{
 						TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 					}
 					client := &http.Client{Transport: tr}
-					
+
 					// Send the GET request
-					resp, err := client.Get(url)
+					resp, err := client.Get(_url)
 					if err != nil {
 						// content := fmt.Sprintf("Failed to add redirect for domain: %s. Error: %s", domain, err.Error())
 						// _, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
@@ -372,7 +372,7 @@ func (c *AutomateCommand) Execute(session *discordgo.Session, interaction *disco
 						// _, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
 						// 	Content: &content,
 						// })
-						session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("Failed to read response body: %s", err.Error()), msg.Reference())
+						_, _ = session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("Failed to read response body: %s", err.Error()), msg.Reference())
 						return
 					}
 
@@ -384,7 +384,7 @@ func (c *AutomateCommand) Execute(session *discordgo.Session, interaction *disco
 						// _, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
 						// 	Content: &content,
 						// })
-						session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("Failed to parse response: %s", err.Error()), msg.Reference())
+						_, _ = session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("Failed to parse response: %s", err.Error()), msg.Reference())
 						return
 					}
 
@@ -397,7 +397,7 @@ func (c *AutomateCommand) Execute(session *discordgo.Session, interaction *disco
 						// _, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
 						// 	Content: &successMessage,
 						// })
-						session.ChannelMessageSendReply(msg.ChannelID, successMessage, msg.Reference())
+						_, _ = session.ChannelMessageSendReply(msg.ChannelID, successMessage, msg.Reference())
 					} else {
 						errorMessage := "Failed to add the redirect."
 						if len(response.Errors) > 0 {
@@ -406,7 +406,7 @@ func (c *AutomateCommand) Execute(session *discordgo.Session, interaction *disco
 						// _, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
 						// 	Content: &errorMessage,
 						// })
-						session.ChannelMessageSendReply(msg.ChannelID, errorMessage, msg.Reference())
+						_, _ = session.ChannelMessageSendReply(msg.ChannelID, errorMessage, msg.Reference())
 					}
 				} else {
 					_, _ = session.ChannelMessageSendReply(msg.ChannelID, "Error casting cpanelresult to type map[string]interface{}, ```json\n"+string(response)+"```", msg.Reference())
