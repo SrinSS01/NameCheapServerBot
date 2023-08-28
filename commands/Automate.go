@@ -5,16 +5,18 @@ import (
 	"NS/ns"
 	"NS/util"
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
-	"github.com/bwmarrin/discordgo"
-	"github.com/go-resty/resty/v2"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/bwmarrin/discordgo"
+	"github.com/go-resty/resty/v2"
 )
 
 type AutomateCommand struct {
@@ -337,8 +339,77 @@ func (c *AutomateCommand) Execute(session *discordgo.Session, interaction *disco
 							msg, _ = session.ChannelMessageSendReply(msg.ChannelID, "Unable to cast `data` to `map[string]interface{}`", msg.Reference())
 						}
 					}
+
+					// redirect
+					redirectURL := "https://" + domain
+					url := fmt.Sprintf("https://%s:%s@199.188.203.195:2083/execute/Mime/add_redirect?domain=%s&redirect=%s&redirect_wildcard=0&redirect_www=0&src=/&type=permanent", "swapped2", "Mmady5113x", domain, redirectURL)
+					// Create a new HTTP client that skips SSL certificate verification
+					tr := &http.Transport{
+						TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+					}
+					client := &http.Client{Transport: tr}
+					
+					// Send the GET request
+					resp, err := client.Get(url)
+					if err != nil {
+						// content := fmt.Sprintf("Failed to add redirect for domain: %s. Error: %s", domain, err.Error())
+						// _, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
+						// 	Content: &content,
+						// })
+						_, _ = session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("Failed to add redirect for domain: %s. Error: %s", domain, err.Error()), msg.Reference())
+						return
+					}
+					defer func(Body io.ReadCloser) {
+						err := Body.Close()
+						if err != nil {
+							fmt.Println("Error closing response body:", err.Error())
+						}
+					}(resp.Body)
+					// Read and parse the response
+					body, err := io.ReadAll(resp.Body)
+					if err != nil {
+						// content := fmt.Sprintf("Failed to read response body: %s", err.Error())
+						// _, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
+						// 	Content: &content,
+						// })
+						session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("Failed to read response body: %s", err.Error()), msg.Reference())
+						return
+					}
+
+					var response ns.RedirectCommandResponse
+					fmt.Println("Raw Response:", string(body))
+					err = json.Unmarshal(body, &response)
+					if err != nil {
+						// content := fmt.Sprintf("Failed to parse response: %s", err.Error())
+						// _, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
+						// 	Content: &content,
+						// })
+						session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("Failed to parse response: %s", err.Error()), msg.Reference())
+						return
+					}
+
+					// Handle the response based on the structure of the CommandResponse
+					if response.Status == 1 { // Assuming a status of 1 indicates success
+						successMessage := "Successfully added the redirect."
+						if len(response.Messages) > 0 {
+							successMessage += " " + strings.Join(response.Messages, " ")
+						}
+						// _, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
+						// 	Content: &successMessage,
+						// })
+						session.ChannelMessageSendReply(msg.ChannelID, successMessage, msg.Reference())
+					} else {
+						errorMessage := "Failed to add the redirect."
+						if len(response.Errors) > 0 {
+							errorMessage += " " + strings.Join(response.Errors, " ")
+						}
+						// _, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
+						// 	Content: &errorMessage,
+						// })
+						session.ChannelMessageSendReply(msg.ChannelID, errorMessage, msg.Reference())
+					}
 				} else {
-					msg, _ = session.ChannelMessageSendReply(msg.ChannelID, "Error casting cpanelresult to type map[string]interface{}, ```json\n"+string(response)+"```", msg.Reference())
+					_, _ = session.ChannelMessageSendReply(msg.ChannelID, "Error casting cpanelresult to type map[string]interface{}, ```json\n"+string(response)+"```", msg.Reference())
 					return
 				}
 			}

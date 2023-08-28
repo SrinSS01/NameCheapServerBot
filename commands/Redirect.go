@@ -2,6 +2,7 @@ package commands
 
 import (
 	"NS/config"
+	"NS/ns"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -11,12 +12,6 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 )
-
-type CommandResponse struct {
-	Status   int      `json:"status"`
-	Messages []string `json:"messages"`
-	Errors   []string `json:"errors"`
-}
 
 type RedirectCommand struct {
 	Config  *config.Config
@@ -95,7 +90,7 @@ func (c *RedirectCommand) Execute(session *discordgo.Session, interaction *disco
 		return
 	}
 
-	var response CommandResponse
+	var response ns.RedirectCommandResponse
 	fmt.Println("Raw Response:", string(body))
 	err = json.Unmarshal(body, &response)
 	if err != nil {
