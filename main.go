@@ -28,17 +28,25 @@ var (
 		commands.Automate.Command,
 		commands.CheckDomain.Command,
 		commands.Redirect.Command,
+		commands.ChangePassword.Command,
+		commands.DeleteEmail.Command,
+		commands.DeleteFile.Command,
+		commands.Monitor.Command,
 	}
 	commandHandlers = map[string]func(*discordgo.Session, *discordgo.InteractionCreate){
-		commands.CreateDomain.Command.Name: commands.CreateDomain.Execute,
-		commands.NS.Command.Name:           commands.NS.Execute,
-		commands.Add.Command.Name:          commands.Add.Execute,
-		commands.CreateEmail.Command.Name:  commands.CreateEmail.Execute,
-		commands.SSL.Command.Name:          commands.SSL.Execute,
-		commands.UploadFile.Command.Name:   commands.UploadFile.Execute,
-		commands.Automate.Command.Name:     commands.Automate.Execute,
-		commands.CheckDomain.Command.Name:  commands.CheckDomain.Execute,
-		commands.Redirect.Command.Name:     commands.Redirect.Execute,
+		commands.CreateDomain.Command.Name:   commands.CreateDomain.Execute,
+		commands.NS.Command.Name:             commands.NS.Execute,
+		commands.Add.Command.Name:            commands.Add.Execute,
+		commands.CreateEmail.Command.Name:    commands.CreateEmail.Execute,
+		commands.SSL.Command.Name:            commands.SSL.Execute,
+		commands.UploadFile.Command.Name:     commands.UploadFile.Execute,
+		commands.Automate.Command.Name:       commands.Automate.Execute,
+		commands.CheckDomain.Command.Name:    commands.CheckDomain.Execute,
+		commands.Redirect.Command.Name:       commands.Redirect.Execute,
+		commands.ChangePassword.Command.Name: commands.ChangePassword.Execute,
+		commands.DeleteEmail.Command.Name:    commands.DeleteEmail.Execute,
+		commands.DeleteFile.Command.Name:     commands.DeleteFile.Execute,
+		commands.Monitor.Command.Name:        commands.Monitor.Execute,
 	}
 )
 
@@ -144,6 +152,10 @@ func main() {
 	commands.Automate.Config = &_config
 	commands.CheckDomain.Config = &_config
 	commands.Redirect.Config = &_config
+	commands.DeleteEmail.Config = &_config
+	commands.ChangePassword.Config = &_config
+	commands.DeleteFile.Config = &_config
+	commands.Monitor.Config = &_config
 	util.Config = &_config
 	if err := discord.Open(); err != nil {
 		logger.Logger.Fatal("Error opening connection", zap.Error(err))

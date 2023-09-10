@@ -11,10 +11,6 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-var (
-	Token = "MTE0MDY3OTgzNTA0MDA4ODI2NQ.GEX-it.OtYKALR-1yH4aDdp555Mx5xJEQm9h0aFOlrYl0" // Replace with your Discord bot token
-)
-
 func main() {
 	dg, err := discordgo.New("Bot " + Token)
 	if err != nil {
