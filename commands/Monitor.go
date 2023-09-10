@@ -25,10 +25,42 @@ var Monitor = MonitorCommand{
 	},
 }
 
-func (m MonitorCommand) Execute(session *discordgo.Session, interaction *discordgo.InteractionCreate) {
+func (m *MonitorCommand) Execute(session *discordgo.Session, interaction *discordgo.InteractionCreate) {
 	//commandData := interaction.ApplicationCommandData()
 	//email := commandData.Options[0].StringValue()
 	//cPanelUserName := m.Config.CPanelUsername
 	//cPanelPassword := m.Config.CPanelPassword
+	/*
+	   	// You can edit this code!
+	      // Click here and start typing.
+	      package main
 
+	      import (
+	      	"fmt"
+	      	"os"
+	      	"os/signal"
+	      	"syscall"
+	      	"time"
+	      )
+
+	      func main() {
+	      	task(time.Now())
+	      	tick := time.NewTicker(time.Second * 5)
+	      	scheduler(tick)
+	      	sigs := make(chan os.Signal, 1)
+	      	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	      	<-sigs
+	      	tick.Stop()
+	      }
+
+	      func scheduler(tick *time.Ticker) {
+	      	for t := range tick.C {
+	      		task(t)
+	      	}
+	      }
+
+	      func task(t time.Time) {
+	      	fmt.Println("hello! printed at ", t)
+	      }
+	*/
 }

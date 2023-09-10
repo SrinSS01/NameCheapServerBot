@@ -32,7 +32,7 @@ var DeleteEmail = DeleteEmailCommand{
 	},
 }
 
-func (d DeleteEmailCommand) Execute(session *discordgo.Session, interaction *discordgo.InteractionCreate) {
+func (d *DeleteEmailCommand) Execute(session *discordgo.Session, interaction *discordgo.InteractionCreate) {
 	_ = session.InteractionRespond(interaction.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
 	})
@@ -41,37 +41,37 @@ func (d DeleteEmailCommand) Execute(session *discordgo.Session, interaction *dis
 	username := d.Config.BasicAuth.Username
 	password := d.Config.BasicAuth.Password
 	result := deleteEmail(email, username, password)
-	progressMessage := "**🔍 Attempting to delete email:** " + email + "...\n"
+	content := "**🔍 Attempting to delete email:** " + email + "..."
+	msg, _ := session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
+		Content: &content,
+	})
+	//progressMessage := "**🔍 Attempting to delete email:** " + email + "...\n"
 
 	var cPanelResponse ns.CPanelResponse
 	err := json.Unmarshal([]byte(result), &cPanelResponse)
 	if err != nil {
 		// Handle JSON parsing error
-		progressMessage += "**❌ Error parsing response!**\\n" + result
-	} else {
-		if data, ok := cPanelResponse.CPanelResult.Data.([]interface{}); ok {
-			// Check the reason field
-			if len(data) > 0 {
-				if obj, ok := data[0].(map[string]interface{}); ok {
-					reason := obj["reason"].(string)
-					if reason == "OK" {
-						progressMessage += "**✅ Successfully deleted!**"
-					} else if strings.HasPrefix(reason, "You do not have an email account named") {
-						progressMessage += "**⚠️ Email account does not exist!**"
-					} else {
-						progressMessage += "**❌ Deletion failed!**\\n" + reason
-					}
-				}
-			} else {
-				progressMessage += "**❌ Deletion failed!**\\n" + result
-			}
-		}
+		_, _ = session.ChannelMessageSendReply(msg.ChannelID, "**❌ Error parsing response!**\n```"+result+"```", msg.Reference())
+		return
 	}
 
-	// Respond to the Discord interaction with the appropriate message
-	_, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
-		Content: &progressMessage,
-	})
+	if data, ok := cPanelResponse.CPanelResult.Data.([]interface{}); ok {
+		// Check the reason field
+		if len(data) > 0 {
+			if obj, ok := data[0].(map[string]interface{}); ok {
+				reason := obj["reason"].(string)
+				if reason == "OK" {
+					_, _ = session.ChannelMessageSendReply(msg.ChannelID, "**✅ Successfully deleted!**", msg.Reference())
+				} else if strings.HasPrefix(reason, "You do not have an email account named") {
+					_, _ = session.ChannelMessageSendReply(msg.ChannelID, "**⚠️ Email account does not exist!**", msg.Reference())
+				} else {
+					_, _ = session.ChannelMessageSendReply(msg.ChannelID, "**❌ Deletion failed!**\n"+reason, msg.Reference())
+				}
+			}
+			return
+		}
+		_, _ = session.ChannelMessageSendReply(msg.ChannelID, "**❌ Deletion failed!**\n"+result, msg.Reference())
+	}
 }
 
 func deleteEmail(email string, cpanelUsername string, cpanelPassword string) string {

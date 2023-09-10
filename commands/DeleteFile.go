@@ -9,6 +9,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 	"io"
 	"net/http"
+	"net/url"
 )
 
 type DeleteFileCommand struct {
@@ -16,11 +17,17 @@ type DeleteFileCommand struct {
 	Config  *config.Config
 }
 
-var DeleteFile = DeleteEmailCommand{
+var DeleteFile = DeleteFileCommand{
 	Command: &discordgo.ApplicationCommand{
 		Name:        "delete-file",
 		Description: "Delete a file from cPanel",
 		Options: []*discordgo.ApplicationCommandOption{
+			{
+				Type:        discordgo.ApplicationCommandOptionString,
+				Name:        "domain",
+				Description: "domain to delete the file from",
+				Required:    true,
+			},
 			{
 				Type:        discordgo.ApplicationCommandOptionString,
 				Name:        "file-name",
@@ -31,9 +38,10 @@ var DeleteFile = DeleteEmailCommand{
 	},
 }
 
-func (d DeleteFileCommand) Execute(session *discordgo.Session, interaction *discordgo.InteractionCreate) {
+func (d *DeleteFileCommand) Execute(session *discordgo.Session, interaction *discordgo.InteractionCreate) {
 	commandData := interaction.ApplicationCommandData()
-	fileName := commandData.Options[0].StringValue()
+	domain := commandData.Options[0].StringValue()
+	fileName := fmt.Sprintf("/home/swapped2/%s/%s", url.QueryEscape(domain), commandData.Options[1].StringValue())
 	cPanelUserName := d.Config.BasicAuth.Username
 	cPanelPassword := d.Config.BasicAuth.Password
 	_ = session.InteractionRespond(interaction.Interaction, &discordgo.InteractionResponse{

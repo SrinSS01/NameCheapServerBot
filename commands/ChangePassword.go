@@ -42,32 +42,32 @@ var ChangePassword = ChangePasswordCommand{
 
 func (c *ChangePasswordCommand) Execute(session *discordgo.Session, interaction *discordgo.InteractionCreate) {
 	var cPanelResponse ns.CPanelResponse
-
+	_ = session.InteractionRespond(interaction.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
+	})
 	commandData := interaction.ApplicationCommandData()
 	email := commandData.Options[0].StringValue()
 	password := commandData.Options[1].StringValue()
-	_ = session.InteractionRespond(interaction.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Content: "Processing your request...",
-		},
+	content := "Processing your request..."
+	msg, _ := session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
+		Content: &content,
 	})
 	result := changeEmailPassword(email, password, c.Config.BasicAuth.Username, c.Config.BasicAuth.Password)
 	if !isJSON(result) {
 		// If the result is not a JSON string, send it directly
-		_, _ = session.ChannelMessageSendReply(interaction.ChannelID, result, interaction.Message.MessageReference)
+		_, _ = session.ChannelMessageSendReply(msg.ChannelID, result, msg.Reference())
 		return
 	}
 	err := json.Unmarshal([]byte(result), &cPanelResponse)
 	if err != nil {
 		// Handle JSON parsing error
-		_, _ = session.ChannelMessageSendReply(interaction.ChannelID, "**❗ Warning! Trouble parsing response!**\\n"+result, interaction.Message.MessageReference)
+		_, _ = session.ChannelMessageSendReply(msg.ChannelID, "**❗ Warning! Trouble parsing response!**\\n"+result, msg.Reference())
 		return
 	}
 
 	progressMessage := "**🔧 Attempting to change password for email:** " + email + "...\n"
 
-	msg, _ := session.ChannelMessageSendReply(interaction.ChannelID, progressMessage, interaction.Message.MessageReference)
+	msg, _ = session.ChannelMessageSendReply(msg.ChannelID, progressMessage, msg.Reference())
 	// Check the reason field
 	if data, ok := cPanelResponse.CPanelResult.Data.([]interface{}); ok {
 		if len(data) > 0 {
