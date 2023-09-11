@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -17,6 +18,14 @@ type MonitorCommand struct {
 	Command *discordgo.ApplicationCommand
 	Config  *config.Config
 }
+
+type MonitorTaskScheduler struct {
+	MessageCount int
+	Task         func()
+	StopTask     chan bool
+}
+
+var monitor map[string]MonitorTaskScheduler
 
 var Monitor = MonitorCommand{
 	Command: &discordgo.ApplicationCommand{
@@ -33,6 +42,43 @@ var Monitor = MonitorCommand{
 	},
 }
 
+func RequestEmailTrack(client *http.Client, apiUrl, cPanelUserName, cPanelPassword string) (*ns.CPanelResponse, error) {
+	req, err := http.NewRequest("GET", apiUrl, nil)
+	if err != nil {
+		return nil, fmt.Errorf("❌ Error creating request: %v", err.Error())
+	}
+	authString := fmt.Sprintf("%s:%s", cPanelUserName, cPanelPassword)
+	authHeader := fmt.Sprintf("Basic %s", base64.StdEncoding.EncodeToString([]byte(authString)))
+	req.Header.Add("Authorization", authHeader)
+	response, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("❌ Error creating request: %v", err.Error())
+	}
+
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(response.Body)
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("❌ Request failed with status code %d", response.StatusCode)
+	}
+	responseBody, err := io.ReadAll(response.Body)
+	if err != nil {
+		return nil, fmt.Errorf("❌ Error reading response: %v", err.Error())
+	}
+	var emailTrackResponse ns.CPanelResponse
+	err = json.Unmarshal(responseBody, &emailTrackResponse)
+	if err != nil {
+		return nil, fmt.Errorf("❌ Error parsing response: %s", err.Error())
+	}
+	if len(emailTrackResponse.CPanelResult.Error) != 0 {
+		return nil, fmt.Errorf("⚠️%s", emailTrackResponse.CPanelResult.Error)
+	}
+	return &emailTrackResponse, nil
+}
+
 func (m *MonitorCommand) Execute(session *discordgo.Session, interaction *discordgo.InteractionCreate) {
 	_ = session.InteractionRespond(interaction.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
@@ -47,43 +93,75 @@ func (m *MonitorCommand) Execute(session *discordgo.Session, interaction *discor
 		Content: &content,
 	})
 	client := &http.Client{}
-	req, err := http.NewRequest("GET", apiUrl, nil)
+	result, err := RequestEmailTrack(client, apiUrl, cPanelUserName, cPanelPassword)
 	if err != nil {
-		_, _ = session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("❌ Error creating request: %v", err.Error()), msg.Reference())
+		_, _ = session.ChannelMessageSendReply(msg.ChannelID, err.Error(), msg.Reference())
 		return
 	}
-	authString := fmt.Sprintf("%s:%s", cPanelUserName, cPanelPassword)
-	authHeader := fmt.Sprintf("Basic %s", base64.StdEncoding.EncodeToString([]byte(authString)))
-	req.Header.Add("Authorization", authHeader)
-	response, err := client.Do(req)
-	if err != nil {
-		_, _ = session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("❌ Error creating request: %v", err.Error()), msg.Reference())
-		return
-	}
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			return
+	stop := make(chan bool)
+
+	ticker := time.NewTicker(time.Second * 5)
+
+	task := func() {
+		msgOld := msg
+		for {
+			select {
+			case <-stop:
+				ticker.Stop()
+				return
+			case <-ticker.C:
+				req, err := RequestEmailTrack(client, apiUrl, cPanelUserName, cPanelPassword)
+				if err != nil {
+					return
+				}
+				mts := monitor[email]
+				if datas, ok := req.CPanelResult.Data.([]interface{}); ok {
+					newMsgCount := len(datas)
+					if mts.MessageCount < newMsgCount {
+						data := datas[newMsgCount-1]
+						if dataObj, ok := data.(map[string]interface{}); ok {
+							sender := dataObj["sender"].(string)
+							recipient := dataObj["recipient"].(string)
+							senderip := dataObj["senderip"].(string)
+							senderhost := dataObj["senderhost"].(string)
+							actionunixtime := dataObj["actionunixtime"].(string)
+							msgOld, _ = session.ChannelMessageSendEmbedReply(msgOld.ChannelID, &discordgo.MessageEmbed{
+								Title: "Email Recieved!",
+								Fields: []*discordgo.MessageEmbedField{
+									{
+										Name:  "To",
+										Value: fmt.Sprintf("`%s`", recipient),
+									},
+									{
+										Name:  "From",
+										Value: fmt.Sprintf("`%s`", sender),
+									},
+									{
+										Name:  "Sender IP",
+										Value: fmt.Sprintf("`%s`", senderip),
+									},
+									{
+										Name:  "Sender Host",
+										Value: fmt.Sprintf("`%s`", senderhost),
+									},
+									{
+										Name:  "Action Time",
+										Value: fmt.Sprintf("<t:%s>", actionunixtime),
+									},
+								},
+							}, msgOld.MessageReference)
+						}
+					}
+				}
+			}
 		}
-	}(response.Body)
-	if response.StatusCode != http.StatusOK {
-		_, _ = session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("❌ Request failed with status code %d", response.StatusCode), msg.Reference())
-		return
 	}
-	responseBody, err := io.ReadAll(response.Body)
-	if err != nil {
-		_, _ = session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("❌ Error reading response: %v", err), msg.Reference())
-		return
-	}
-	var emailTrackResponse ns.CPanelResponse
-	err = json.Unmarshal(responseBody, &emailTrackResponse)
-	if err != nil {
-		_, _ = session.ChannelMessageSendReply(msg.ChannelID, "❌ Error parsing response", msg.Reference())
-		return
-	}
-	if len(emailTrackResponse.CPanelResult.Error) != 0 {
-		_, _ = session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("⚠️%s", emailTrackResponse.CPanelResult.Error), msg.Reference())
-		return
+	if datas, ok := result.CPanelResult.Data.([]interface{}); ok {
+		monitor[email] = MonitorTaskScheduler{
+			MessageCount: len(datas),
+			Task:         task,
+			StopTask:     stop,
+		}
 	}
 
 	/*
