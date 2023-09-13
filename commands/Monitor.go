@@ -62,7 +62,9 @@ var Monitor = MonitorCommand{
 	},
 }
 
-func RequestEmailTrack(client *http.Client, apiUrl, cPanelUserName, cPanelPassword string) (*ns.CPanelResponse, error) {
+func RequestEmailTrack(client *http.Client, email, cPanelUserName, cPanelPassword string) (*ns.CPanelResponse, error) {
+	apiUrl := "https://wch-llc.com:2083/json-api/cpanel?cpanel_jsonapi_user=user&cpanel_jsonapi_apiversion=2&cpanel_jsonapi_module=EmailTrack&cpanel_jsonapi_func=search&success=1&defer=0&recipient=" + url.QueryEscape(email)
+
 	req, err := http.NewRequest("GET", apiUrl, nil)
 	if err != nil {
 		return nil, fmt.Errorf("❌ Error creating request: %v", err.Error())
@@ -125,13 +127,12 @@ func (m *MonitorCommand) Execute(session *discordgo.Session, interaction *discor
 	case "start":
 		cPanelUserName := m.Config.BasicAuth.Username
 		cPanelPassword := m.Config.BasicAuth.Password
-		apiUrl := "https://wch-llc.com:2083/json-api/cpanel?cpanel_jsonapi_user=user&cpanel_jsonapi_apiversion=2&cpanel_jsonapi_module=EmailTrack&cpanel_jsonapi_func=search&success=1&defer=0&recipient=" + url.QueryEscape(email)
 		content := "Starting to monitor"
 		msg, _ := session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
 			Content: &content,
 		})
 		client := &http.Client{}
-		result, err := RequestEmailTrack(client, apiUrl, cPanelUserName, cPanelPassword)
+		result, err := RequestEmailTrack(client, email, cPanelUserName, cPanelPassword)
 		if err != nil {
 			_, _ = session.ChannelMessageSendReply(msg.ChannelID, err.Error(), msg.Reference())
 			return
@@ -147,7 +148,7 @@ func (m *MonitorCommand) Execute(session *discordgo.Session, interaction *discor
 					ticker.Stop()
 					return
 				case <-ticker.C:
-					req, err := RequestEmailTrack(client, apiUrl, cPanelUserName, cPanelPassword)
+					req, err := RequestEmailTrack(client, email, cPanelUserName, cPanelPassword)
 					if err != nil {
 						return
 					}

@@ -12,6 +12,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"regexp"
 	"syscall"
 )
 
@@ -47,6 +48,10 @@ var (
 		commands.DeleteEmail.Command.Name:    commands.DeleteEmail.Execute,
 		commands.DeleteFile.Command.Name:     commands.DeleteFile.Execute,
 		commands.Monitor.Command.Name:        commands.Monitor.Execute,
+	}
+	dashCommandHandlers = map[string]func(*discordgo.Session, *discordgo.MessageCreate, string){
+		commands.Add.Command.Name:            commands.Add.ExecuteDash,
+		commands.ChangePassword.Command.Name: commands.ChangePassword.ExecuteDash,
 	}
 )
 
@@ -132,6 +137,7 @@ func init() {
 func init() {
 	discord.AddHandler(onReady)
 	discord.AddHandler(slashCommandInteraction)
+	discord.AddHandler(messageCreate)
 }
 
 func onReady(session *discordgo.Session, _ *discordgo.Ready) {
@@ -143,6 +149,24 @@ func slashCommandInteraction(session *discordgo.Session, interaction *discordgo.
 		return
 	}
 	commandHandlers[interaction.ApplicationCommandData().Name](session, interaction)
+}
+
+func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
+	regex, err := regexp.Compile("-(?P<name>[\\w-]+)(?:\\s+(?P<args>.*))?")
+	if err != nil {
+		return
+	}
+	matches := regex.FindStringSubmatch(m.Content)
+	if len(matches) == 0 {
+		return
+	}
+	name := matches[regex.SubexpIndex("name")]
+	args := matches[regex.SubexpIndex("args")]
+	f := dashCommandHandlers[name]
+	if f != nil {
+		return
+	}
+	f(s, m, args)
 }
 
 func main() {

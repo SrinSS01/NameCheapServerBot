@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"github.com/bwmarrin/discordgo"
 	"net/url"
+	"regexp"
+	"strings"
 )
 
 type AddCommand struct {
@@ -28,7 +30,59 @@ var Add = AddCommand{
 	},
 }
 
-func (c *AddCommand) Execute(session *discordgo.Session, interaction *discordgo.InteractionCreate) {
+func RequestAddDomain(domain string) (string, error) {
+	escapedDomain := url.QueryEscape(domain)
+	apiUrl := fmt.Sprintf("https://199.188.203.195:2083/json-api/cpanel?cpanel_jsonapi_func=addaddondomain&cpanel_jsonapi_module=AddonDomain&cpanel_jsonapi_version=2&newdomain=%s&subdomain=%s&dir=/home/swapped2/%s", escapedDomain, escapedDomain, escapedDomain)
+	response, err := util.MakeRequest("GET", apiUrl, "", nil)
+	if err != nil {
+		return "", err
+	}
+
+	var addDomainResponse ns.Response
+	err = json.Unmarshal(response, &addDomainResponse)
+	if err != nil {
+		return "", fmt.Errorf("Error unmarshalling JSON ```json\n%s```: %s", response, err.Error())
+	}
+
+	if cpanelresult, ok := addDomainResponse.Cpanelresult.(map[string]interface{}); ok {
+		if data, ok := cpanelresult["data"].(map[string]interface{}); ok {
+			if data["result"].(string) == "0" {
+				return "", fmt.Errorf("Failed to add domain: " + data["reason"].(string))
+			}
+			return "Successfully added domain: " + domain, nil
+		} else if datas, ok := cpanelresult["data"].([]interface{}); ok {
+			builder := strings.Builder{}
+			for _, data := range datas {
+				if data.(map[string]interface{})["result"].(float64) == 0 {
+					builder.WriteString("Failed to add domain: " + data.(map[string]interface{})["reason"].(string))
+					builder.WriteByte('\n')
+				}
+				builder.WriteString("Successfully added domain: " + domain)
+			}
+			return builder.String(), nil
+		} else {
+			return "", fmt.Errorf("error casting data to type []interface{} or map[string]interface{}")
+		}
+	} else {
+		return "", fmt.Errorf("Error casting cpanelresult to type map[string]interface{}, ```json\n" + string(response) + "```")
+	}
+}
+
+func (a *AddCommand) ExecuteDash(s *discordgo.Session, m *discordgo.MessageCreate, domain string) {
+	matched, err := regexp.MatchString("\\w+\\.\\w+", domain)
+	if err != nil || !matched {
+		_, _ = s.ChannelMessageSendReply(m.ChannelID, "Wrong domain format", m.Reference())
+		return
+	}
+	result, err := RequestAddDomain(domain)
+	if err != nil {
+		_, _ = s.ChannelMessageSendReply(m.ChannelID, err.Error(), m.Reference())
+		return
+	}
+	_, _ = s.ChannelMessageSendReply(m.ChannelID, result, m.Reference())
+}
+
+func (a *AddCommand) Execute(session *discordgo.Session, interaction *discordgo.InteractionCreate) {
 	var err error
 	options := interaction.ApplicationCommandData().Options
 	domain := options[0].StringValue()
@@ -52,7 +106,18 @@ func (c *AddCommand) Execute(session *discordgo.Session, interaction *discordgo.
 	if err != nil {
 		return
 	}
-	escapedDomain := url.QueryEscape(domain)
+	result, err := RequestAddDomain(domain)
+	if err != nil {
+		eStr := err.Error()
+		_, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
+			Content: &eStr,
+		})
+		return
+	}
+	_, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
+		Content: &result,
+	})
+	/*escapedDomain := url.QueryEscape(domain)
 	addonURL := fmt.Sprintf("https://199.188.203.195:2083/json-api/cpanel?cpanel_jsonapi_func=addaddondomain&cpanel_jsonapi_module=AddonDomain&cpanel_jsonapi_version=2&newdomain=%s&subdomain=%s&dir=/home/swapped2/%s", escapedDomain, escapedDomain, escapedDomain)
 	response, err := util.MakeRequest("GET", addonURL, "", nil)
 	if err != nil {
@@ -112,5 +177,5 @@ func (c *AddCommand) Execute(session *discordgo.Session, interaction *discordgo.
 			Content: &content,
 		})
 		return
-	}
+	}*/
 }

@@ -30,6 +30,26 @@ var CheckDomain = CheckDomainCommand{
 	},
 }
 
+func RequestDomainCheck(apiUser, apiKey, userName, clientIP, domain string) (*ns.ApiResponse, error) {
+	apiUrl := fmt.Sprintf("https://api.namecheap.com/xml.response?ApiUser=%s&ApiKey=%s&UserName=%s&Command=namecheap.domains.check&ClientIp=%s&DomainList=%s", apiUser, apiKey, userName, clientIP, domain)
+	resp, err := resty.New().R().Get(apiUrl)
+	if err != nil {
+		return nil, fmt.Errorf("Error making the request: %s", err.Error())
+	}
+
+	var apiResponse ns.ApiResponse
+	body := resp.Body()
+	err = xml.Unmarshal(body, &apiResponse)
+	if err != nil {
+		return nil, fmt.Errorf("Error parsing the response: %s", err.Error())
+	}
+
+	if apiResponse.Status != "OK" {
+		return nil, fmt.Errorf("Error in API response: \n```xml\n%s\n```", string(body))
+	}
+	return &apiResponse, nil
+}
+
 func (c *CheckDomainCommand) Execute(session *discordgo.Session, interaction *discordgo.InteractionCreate) {
 	var err error
 	apiUser := c.Config.ApiUser
@@ -51,7 +71,19 @@ func (c *CheckDomainCommand) Execute(session *discordgo.Session, interaction *di
 		}
 		return
 	}
-	_url := fmt.Sprintf("https://api.namecheap.com/xml.response?ApiUser=%s&ApiKey=%s&UserName=%s&Command=namecheap.domains.check&ClientIp=%s&DomainList=%s", apiUser, apiKey, userName, clientIP, domain)
+	_ = session.InteractionRespond(interaction.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
+	})
+	apiResponse, err := RequestDomainCheck(apiUser, apiKey, userName, clientIP, domain)
+	if err != nil {
+		content := err.Error()
+		_, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
+			Content: &content,
+		})
+		return
+	}
+
+	/*_url := fmt.Sprintf("https://api.namecheap.com/xml.response?ApiUser=%s&ApiKey=%s&UserName=%s&Command=namecheap.domains.check&ClientIp=%s&DomainList=%s", apiUser, apiKey, userName, clientIP, domain)
 	// discord defer reply
 	err = session.InteractionRespond(interaction.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
@@ -85,7 +117,8 @@ func (c *CheckDomainCommand) Execute(session *discordgo.Session, interaction *di
 			Content: &content,
 		})
 		return
-	}
+	}*/
+	var msg *discordgo.Message = nil
 	for _, result := range apiResponse.CommandResponse.DomainCheckData {
 		availability := "available"
 		if !result.Available {
@@ -93,6 +126,10 @@ func (c *CheckDomainCommand) Execute(session *discordgo.Session, interaction *di
 		}
 		content := fmt.Sprintf("Domain: %s, Availability: %s", result.Domain, availability)
 
+		if msg != nil {
+			msg, _ = session.ChannelMessageSendReply(msg.ChannelID, content, msg.Reference())
+			continue
+		}
 		_, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
 			Content: &content,
 		})

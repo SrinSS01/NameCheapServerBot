@@ -41,6 +41,20 @@ var CreateEmail = CreateEmailCommand{
 	},
 }
 
+func RequestEmailCreate(domain, localPart, password string) (*ns.Response, error) {
+	apiUrl := fmt.Sprintf("https://199.188.203.195:2083/json-api/cpanel?cpanel_jsonapi_func=addpop&cpanel_jsonapi_module=Email&cpanel_jsonapi_version=2&domain=%s&email=%s&password=%s", domain, localPart, password)
+	response, err := util.MakeRequest("GET", apiUrl, "", nil)
+	if err != nil {
+		return nil, err
+	}
+	var emailCreateResponse ns.Response
+	err = json.Unmarshal(response, &emailCreateResponse)
+	if err != nil {
+		return nil, err
+	}
+	return &emailCreateResponse, nil
+}
+
 func (c *CreateEmailCommand) Execute(session *discordgo.Session, interaction *discordgo.InteractionCreate) {
 	var err error
 	options := interaction.ApplicationCommandData().Options
@@ -72,15 +86,12 @@ func (c *CreateEmailCommand) Execute(session *discordgo.Session, interaction *di
 		return
 	}
 
-	emailURL := fmt.Sprintf("https://199.188.203.195:2083/json-api/cpanel?cpanel_jsonapi_func=addpop&cpanel_jsonapi_module=Email&cpanel_jsonapi_version=2&domain=%s&email=%s&password=%s", domain, localPart, password)
-	response, err := util.MakeRequest("GET", emailURL, "", nil)
+	emailCreateResponse, err := RequestEmailCreate(domain, localPart, password)
 	if err != nil {
-		return
-	}
-
-	var emailCreateResponse ns.Response
-	err = json.Unmarshal(response, &emailCreateResponse)
-	if err != nil {
+		content := err.Error()
+		_, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
+			Content: &content,
+		})
 		return
 	}
 
@@ -101,7 +112,7 @@ func (c *CreateEmailCommand) Execute(session *discordgo.Session, interaction *di
 				}
 			}
 		} else if data, __ok := cpanelresult["data"].(map[string]interface{}); __ok {
-			if data["result"].(string) == "0" {
+			if data["result"].(float64) == 0 {
 				content = fmt.Sprintf("Failed to create email account: %s", data["reason"].(string))
 				_, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
 					Content: &content,
@@ -119,7 +130,8 @@ func (c *CreateEmailCommand) Execute(session *discordgo.Session, interaction *di
 			})
 		}
 	} else {
-		content = "Error casting cpanelresult to type map[string]interface{}, ```json\n" + string(response) + "\n```"
+		marshal, _ := json.Marshal(emailCreateResponse)
+		content = "Error casting cpanelresult to type map[string]interface{}, ```json\n" + string(marshal) + "\n```"
 		_, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
 			Content: &content,
 		})
