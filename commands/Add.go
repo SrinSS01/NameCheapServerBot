@@ -69,7 +69,7 @@ func RequestAddDomain(domain string) (string, error) {
 }
 
 func (a *AddCommand) ExecuteDash(s *discordgo.Session, m *discordgo.MessageCreate, domain string) {
-	matched, err := regexp.MatchString("\\w+\\.\\w+", domain)
+	matched, err := regexp.MatchString("^\\w+(?:\\.\\w+)+$", domain)
 	if err != nil || !matched {
 		_, _ = s.ChannelMessageSendReply(m.ChannelID, "Wrong domain format", m.Reference())
 		return

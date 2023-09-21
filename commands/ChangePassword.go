@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
@@ -100,7 +101,24 @@ func RequestChangePassword(email, cPanelUsername, cPanelPassword, emailPassword 
 }
 
 func (c *ChangePasswordCommand) ExecuteDash(s *discordgo.Session, m *discordgo.MessageCreate, args string) {
-
+	args = strings.ToLower(args)
+	regex, err := regexp.Compile("^(?P<email>(?:[a-z0-9!#$%&'*+/=?^_{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_{|}~-]+)*|\"(?:[\\x01-\\x08\\x0b\\x0c\\x0e-\\x1f\\x21\\x23-\\x5b\\x5d-\\x7f]|\\\\[\\x01-\\x09\\x0b\\x0c\\x0e-\\x7f])*\")@(?:(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?|\\[(?:(?:(2(5[0-5]|[0-4][0-9])|1[0-9][0-9]|[1-9]?[0-9]))\\.){3}(?:(2(5[0-5]|[0-4][0-9])|1[0-9][0-9]|[1-9]?[0-9])|[a-z0-9-]*[a-z0-9]:(?:[\\x01-\\x08\\x0b\\x0c\\x0e-\\x1f\\x21-\\x5a\\x53-\\x7f]|\\\\[\\x01-\\x09\\x0b\\x0c\\x0e-\\x7f])+)\\])) +(?P<password>[^\\s]+)$")
+	if err != nil {
+		return
+	}
+	matches := regex.FindStringSubmatch(args)
+	if len(matches) == 0 {
+		_, _ = s.ChannelMessageSendReply(m.ChannelID, "Wrong format", m.Reference())
+		return
+	}
+	email := matches[regex.SubexpIndex("email")]
+	password := matches[regex.SubexpIndex("password")]
+	result, err := RequestChangePassword(email, c.Config.BasicAuth.Username, c.Config.BasicAuth.Password, password)
+	if err != nil {
+		_, _ = s.ChannelMessageSendReply(m.ChannelID, err.Error(), m.Reference())
+		return
+	}
+	_, _ = s.ChannelMessageSendReply(m.ChannelID, result, m.Reference())
 }
 
 func (c *ChangePasswordCommand) Execute(session *discordgo.Session, interaction *discordgo.InteractionCreate) {

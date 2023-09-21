@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/bwmarrin/discordgo"
 	"github.com/go-resty/resty/v2"
+	"regexp"
 	"strings"
 )
 
@@ -30,6 +31,57 @@ var CreateDomain = CreateDomainCommand{
 	},
 }
 
+func RequestCreateDomain(apiUser, apiKey, userName, clientIP, domain string) (*ns.ApiResponse, error) {
+	apiUrl := fmt.Sprintf("https://api.namecheap.com/xml.response?ApiUser=%s&ApiKey=%s&UserName=%s&Command=namecheap.domains.check&ClientIp=%s&DomainList=%s", apiUser, apiKey, userName, clientIP, domain)
+	resp, err := resty.New().R().Get(apiUrl)
+	if err != nil {
+		return nil, fmt.Errorf("error making the request: %s", err.Error())
+	}
+	var apiResponse ns.ApiResponse
+	body := resp.Body()
+	err = xml.Unmarshal(body, &apiResponse)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing the response: %s", err.Error())
+	}
+	if apiResponse.Status != "OK" {
+		return nil, fmt.Errorf("error in API response: \n```xml\n%s\n```", string(body))
+	}
+	return &apiResponse, nil
+}
+
+func (c *CreateDomainCommand) ExecuteDash(s *discordgo.Session, m *discordgo.MessageCreate, domain string) {
+	apiUser := c.Config.ApiUser
+	apiKey := c.Config.ApiKey
+	userName := c.Config.UserName
+	clientIP := c.Config.ClientIP
+	matched, err := regexp.MatchString("^\\w+(?:\\.\\w+)+$", domain)
+	if err != nil || !matched {
+		_, _ = s.ChannelMessageSendReply(m.ChannelID, "Wrong domain format", m.Reference())
+		return
+	}
+	apiResponse, err := RequestCreateDomain(apiUser, apiKey, userName, clientIP, domain)
+	if err != nil {
+		_, _ = s.ChannelMessageSendReply(m.ChannelID, err.Error(), m.Reference())
+		return
+	}
+
+	for _, result := range apiResponse.CommandResponse.DomainCheckData {
+		availability := "available"
+		if !result.Available {
+			availability = "unavailable"
+		}
+		msg, _ := s.ChannelMessageSendReply(m.ChannelID, fmt.Sprintf("Domain: %s, Availability: %s", result.Domain, availability), m.Reference())
+
+		if result.Available {
+			msg, err := s.ChannelMessageSendReply(msg.ChannelID, "Registering domain...", msg.Reference())
+			if err != nil {
+				return
+			}
+			RegisterDomain(c.Config, result.Domain, msg, s)
+		}
+	}
+}
+
 func (c *CreateDomainCommand) Execute(session *discordgo.Session, interaction *discordgo.InteractionCreate) {
 	var err error
 	apiUser := c.Config.ApiUser
@@ -51,7 +103,7 @@ func (c *CreateDomainCommand) Execute(session *discordgo.Session, interaction *d
 		}
 		return
 	}
-	_url := fmt.Sprintf("https://api.namecheap.com/xml.response?ApiUser=%s&ApiKey=%s&UserName=%s&Command=namecheap.domains.check&ClientIp=%s&DomainList=%s", apiUser, apiKey, userName, clientIP, domain)
+	//_url := fmt.Sprintf("https://api.namecheap.com/xml.response?ApiUser=%s&ApiKey=%s&UserName=%s&Command=namecheap.domains.check&ClientIp=%s&DomainList=%s", apiUser, apiKey, userName, clientIP, domain)
 	// discord defer reply
 	err = session.InteractionRespond(interaction.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
@@ -59,28 +111,36 @@ func (c *CreateDomainCommand) Execute(session *discordgo.Session, interaction *d
 	if err != nil {
 		return
 	}
-	resp, err := resty.New().R().Get(_url)
+	//resp, err := resty.New().R().Get(_url)
+	//if err != nil {
+	//	content := fmt.Sprintf("Error making the request: %s", err.Error())
+	//	_, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
+	//		Content: &content,
+	//	})
+	//	return
+	//}
+	//
+	//var apiResponse ns.ApiResponse
+	//body := resp.Body()
+	//err = xml.Unmarshal(body, &apiResponse)
+	//if err != nil {
+	//	content := fmt.Sprintf("Error parsing the response: %s", err.Error())
+	//	_, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
+	//		Content: &content,
+	//	})
+	//	return
+	//}
+	//
+	//if apiResponse.Status != "OK" {
+	//	content := fmt.Sprintf("Error in API response: \n```xml\n%s\n```", string(body))
+	//	_, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
+	//		Content: &content,
+	//	})
+	//	return
+	//}
+	apiResponse, err := RequestCreateDomain(apiUser, apiKey, userName, clientIP, domain)
 	if err != nil {
-		content := fmt.Sprintf("Error making the request: %s", err.Error())
-		_, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
-			Content: &content,
-		})
-		return
-	}
-
-	var apiResponse ns.ApiResponse
-	body := resp.Body()
-	err = xml.Unmarshal(body, &apiResponse)
-	if err != nil {
-		content := fmt.Sprintf("Error parsing the response: %s", err.Error())
-		_, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
-			Content: &content,
-		})
-		return
-	}
-
-	if apiResponse.Status != "OK" {
-		content := fmt.Sprintf("Error in API response: \n```xml\n%s\n```", string(body))
+		content := err.Error()
 		_, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
 			Content: &content,
 		})

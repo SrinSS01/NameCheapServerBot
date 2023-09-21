@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/bwmarrin/discordgo"
 	"github.com/go-resty/resty/v2"
+	"regexp"
 	"strings"
 )
 
@@ -48,6 +49,33 @@ func RequestDomainCheck(apiUser, apiKey, userName, clientIP, domain string) (*ns
 		return nil, fmt.Errorf("Error in API response: \n```xml\n%s\n```", string(body))
 	}
 	return &apiResponse, nil
+}
+
+func (c *CheckDomainCommand) ExecuteDash(s *discordgo.Session, m *discordgo.MessageCreate, domain string) {
+	apiUser := c.Config.ApiUser
+	apiKey := c.Config.ApiKey
+	userName := c.Config.UserName
+	clientIP := c.Config.ClientIP
+	matched, err := regexp.MatchString("^\\w+(?:\\.\\w+)+$", domain)
+	if err != nil || !matched {
+		_, _ = s.ChannelMessageSendReply(m.ChannelID, "Wrong domain format", m.Reference())
+		return
+	}
+	apiResponse, err := RequestDomainCheck(apiUser, apiKey, userName, clientIP, domain)
+	if err != nil {
+		_, _ = s.ChannelMessageSendReply(m.ChannelID, err.Error(), m.Reference())
+		return
+	}
+	var msg = m.Message
+	for _, result := range apiResponse.CommandResponse.DomainCheckData {
+		availability := "available"
+		if !result.Available {
+			availability = "unavailable"
+		}
+		content := fmt.Sprintf("Domain: %s, Availability: %s", result.Domain, availability)
+
+		msg, _ = s.ChannelMessageSendReply(msg.ChannelID, content, msg.Reference())
+	}
 }
 
 func (c *CheckDomainCommand) Execute(session *discordgo.Session, interaction *discordgo.InteractionCreate) {
