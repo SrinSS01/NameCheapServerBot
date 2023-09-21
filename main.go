@@ -53,6 +53,7 @@ var (
 		},
 		commands.CreateEmail.Command.Name: {
 			Slash: commands.CreateEmail.Execute,
+			Dash:  commands.CreateEmail.ExecuteDash,
 		},
 		commands.SSL.Command.Name: {
 			Slash: commands.SSL.Execute,

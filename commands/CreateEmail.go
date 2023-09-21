@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/bwmarrin/discordgo"
+	"regexp"
 	"strings"
 )
 
@@ -41,6 +42,8 @@ var CreateEmail = CreateEmailCommand{
 	},
 }
 
+var regex, _ = regexp.Compile("^(?P<domain>\\w+(?:\\.\\w+)+) +(?P<localPart>[a-z0-9!#$%&'*+/=?^_{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_{|}~-]+)*|\"(?:[\\x01-\\x08\\x0b\\x0c\\x0e-\\x1f\\x21\\x23-\\x5b\\x5d-\\x7f]|\\\\[\\x01-\\x09\\x0b\\x0c\\x0e-\\x7f])*\")(?: +(?P<password>\\S+))?$")
+
 func RequestEmailCreate(domain, localPart, password string) (*ns.Response, error) {
 	apiUrl := fmt.Sprintf("https://199.188.203.195:2083/json-api/cpanel?cpanel_jsonapi_func=addpop&cpanel_jsonapi_module=Email&cpanel_jsonapi_version=2&domain=%s&email=%s&password=%s", domain, localPart, password)
 	response, err := util.MakeRequest("GET", apiUrl, "", nil)
@@ -53,6 +56,48 @@ func RequestEmailCreate(domain, localPart, password string) (*ns.Response, error
 		return nil, err
 	}
 	return &emailCreateResponse, nil
+}
+
+func (c *CreateEmailCommand) ExecuteDash(session *discordgo.Session, messageCreate *discordgo.MessageCreate, args string) {
+	matches := regex.FindStringSubmatch(args)
+	if len(matches) == 0 {
+		_, _ = session.ChannelMessageSendReply(messageCreate.ChannelID, "Please provide valid arguments", messageCreate.Reference())
+		return
+	}
+	domain := matches[regex.SubexpIndex("domain")]
+	localPart := matches[regex.SubexpIndex("localPart")]
+	password := matches[regex.SubexpIndex("password")]
+	if password == "" {
+		password = c.Config.DefaultPassword
+	}
+	emailCreateResponse, err := RequestEmailCreate(domain, localPart, password)
+	if err != nil {
+		_, _ = session.ChannelMessageSendReply(messageCreate.ChannelID, err.Error(), messageCreate.Reference())
+		return
+	}
+
+	if cpanelresult, ok := emailCreateResponse.Cpanelresult.(map[string]interface{}); ok {
+		if datas, _ok := cpanelresult["data"].([]interface{}); _ok {
+			for _, data := range datas {
+				if data.(map[string]interface{})["result"].(float64) == 0 {
+					_, _ = session.ChannelMessageSendReply(messageCreate.ChannelID, fmt.Sprintf("Failed to create email account: %s", data.(map[string]interface{})["reason"].(string)), messageCreate.Reference())
+				} else {
+					_, _ = session.ChannelMessageSendReply(messageCreate.ChannelID, fmt.Sprintf("Successfully created email account: %s", localPart+"@"+domain), messageCreate.Reference())
+				}
+			}
+		} else if data, __ok := cpanelresult["data"].(map[string]interface{}); __ok {
+			if data["result"].(float64) == 0 {
+				_, _ = session.ChannelMessageSendReply(messageCreate.ChannelID, fmt.Sprintf("Failed to create email account: %s", data["reason"].(string)), messageCreate.Reference())
+			} else {
+				_, _ = session.ChannelMessageSendReply(messageCreate.ChannelID, fmt.Sprintf("Successfully created email account: %s", localPart+"@"+domain), messageCreate.Reference())
+			}
+		} else {
+			_, _ = session.ChannelMessageSendReply(messageCreate.ChannelID, fmt.Sprintf("Error casting data to type `map[string]interface{}` or `[]interface{}`, ```json\n%s\n```", cpanelresult["data"]), messageCreate.Reference())
+		}
+	} else {
+		marshal, _ := json.Marshal(emailCreateResponse)
+		_, _ = session.ChannelMessageSendReply(messageCreate.ChannelID, "Error casting cpanelresult to type map[string]interface{}, ```json\n"+string(marshal)+"\n```", messageCreate.Reference())
+	}
 }
 
 func (c *CreateEmailCommand) Execute(session *discordgo.Session, interaction *discordgo.InteractionCreate) {
