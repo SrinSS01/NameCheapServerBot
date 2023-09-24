@@ -46,6 +46,7 @@ var (
 		},
 		commands.NS.Command.Name: {
 			Slash: commands.NS.Execute,
+			Dash:  commands.NS.ExecuteDash,
 		},
 		commands.Add.Command.Name: {
 			Slash: commands.Add.Execute,
@@ -57,9 +58,11 @@ var (
 		},
 		commands.SSL.Command.Name: {
 			Slash: commands.SSL.Execute,
+			Dash:  commands.SSL.ExecuteDash,
 		},
 		commands.UploadFile.Command.Name: {
 			Slash: commands.UploadFile.Execute,
+			Dash:  commands.UploadFile.ExecuteDash,
 		},
 		commands.Automate.Command.Name: {
 			Slash: commands.Automate.Execute,
@@ -70,6 +73,7 @@ var (
 		},
 		commands.Redirect.Command.Name: {
 			Slash: commands.Redirect.Execute,
+			Dash:  commands.Redirect.ExecuteDash,
 		},
 		commands.ChangePassword.Command.Name: {
 			Slash: commands.ChangePassword.Execute,
@@ -77,12 +81,15 @@ var (
 		},
 		commands.DeleteEmail.Command.Name: {
 			Slash: commands.DeleteEmail.Execute,
+			Dash:  commands.DeleteEmail.ExecuteDash,
 		},
 		commands.DeleteFile.Command.Name: {
 			Slash: commands.DeleteFile.Execute,
+			Dash:  commands.DeleteFile.ExecuteDash,
 		},
 		commands.Monitor.Command.Name: {
 			Slash: commands.Monitor.Execute,
+			Dash:  commands.Monitor.ExecuteDash,
 		},
 	}
 )

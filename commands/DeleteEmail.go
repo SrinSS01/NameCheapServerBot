@@ -9,6 +9,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 )
 
@@ -32,30 +33,22 @@ var DeleteEmail = DeleteEmailCommand{
 	},
 }
 
-func (d *DeleteEmailCommand) Execute(session *discordgo.Session, interaction *discordgo.InteractionCreate) {
-	_ = session.InteractionRespond(interaction.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
-	})
-	commandData := interaction.ApplicationCommandData()
-	email := commandData.Options[0].StringValue()
-	username := d.Config.BasicAuth.Username
-	password := d.Config.BasicAuth.Password
-	result := deleteEmail(email, username, password)
-	content := "**🔍 Attempting to delete email:** " + email + "..."
-	msg, _ := session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
-		Content: &content,
-	})
-	//progressMessage := "**🔍 Attempting to delete email:** " + email + "...\n"
-
-	var cPanelResponse ns.CPanelResponse
-	err := json.Unmarshal([]byte(result), &cPanelResponse)
-	if err != nil {
-		// Handle JSON parsing error
-		_, _ = session.ChannelMessageSendReply(msg.ChannelID, "**❌ Error parsing response!**\n```"+result+"```", msg.Reference())
+func (d *DeleteEmailCommand) ExecuteDash(session *discordgo.Session, messageCreate *discordgo.MessageCreate, email string) {
+	matched, _ := regexp.MatchString("^(?:[a-z0-9!#$%&'*+/=?^_{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_{|}~-]+)*|\"(?:[\\x01-\\x08\\x0b\\x0c\\x0e-\\x1f\\x21\\x23-\\x5b\\x5d-\\x7f]|\\\\[\\x01-\\x09\\x0b\\x0c\\x0e-\\x7f])*\")@(?:(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?|\\[(?:(?:(2(5[0-5]|[0-4][0-9])|1[0-9][0-9]|[1-9]?[0-9]))\\.){3}(?:(2(5[0-5]|[0-4][0-9])|1[0-9][0-9]|[1-9]?[0-9])|[a-z0-9-]*[a-z0-9]:(?:[\\x01-\\x08\\x0b\\x0c\\x0e-\\x1f\\x21-\\x5a\\x53-\\x7f]|\\\\[\\x01-\\x09\\x0b\\x0c\\x0e-\\x7f])+)\\])$", email)
+	if !matched {
+		_, _ = session.ChannelMessageSendReply(messageCreate.ChannelID, "Please provide a valid email address", messageCreate.Reference())
 		return
 	}
-
-	if data, ok := cPanelResponse.CPanelResult.Data.([]interface{}); ok {
+	username := d.Config.BasicAuth.Username
+	password := d.Config.BasicAuth.Password
+	msg, _ := session.ChannelMessageSendReply(messageCreate.ChannelID, "**🔍 Attempting to delete email:** "+email+"...", messageCreate.Reference())
+	result, err := RequestDeleteEmail(email, username, password)
+	if err != nil {
+		// Handle JSON parsing error
+		_, _ = session.ChannelMessageSendReply(msg.ChannelID, err.Error(), msg.Reference())
+		return
+	}
+	if data, ok := result.CPanelResult.Data.([]interface{}); ok {
 		// Check the reason field
 		if len(data) > 0 {
 			if obj, ok := data[0].(map[string]interface{}); ok {
@@ -70,14 +63,54 @@ func (d *DeleteEmailCommand) Execute(session *discordgo.Session, interaction *di
 			}
 			return
 		}
-		_, _ = session.ChannelMessageSendReply(msg.ChannelID, "**❌ Deletion failed!**\n"+result, msg.Reference())
+		marshal, _ := json.Marshal(result)
+		_, _ = session.ChannelMessageSendReply(msg.ChannelID, "**❌ Deletion failed!**\n"+string(marshal), msg.Reference())
 	}
 }
 
-func deleteEmail(email string, cpanelUsername string, cpanelPassword string) string {
+func (d *DeleteEmailCommand) Execute(session *discordgo.Session, interaction *discordgo.InteractionCreate) {
+	_ = session.InteractionRespond(interaction.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
+	})
+	commandData := interaction.ApplicationCommandData()
+	email := commandData.Options[0].StringValue()
+	username := d.Config.BasicAuth.Username
+	password := d.Config.BasicAuth.Password
+	content := "**🔍 Attempting to delete email:** " + email + "..."
+	msg, _ := session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
+		Content: &content,
+	})
+	result, err := RequestDeleteEmail(email, username, password)
+	if err != nil {
+		// Handle JSON parsing error
+		_, _ = session.ChannelMessageSendReply(msg.ChannelID, err.Error(), msg.Reference())
+		return
+	}
+
+	if data, ok := result.CPanelResult.Data.([]interface{}); ok {
+		// Check the reason field
+		if len(data) > 0 {
+			if obj, ok := data[0].(map[string]interface{}); ok {
+				reason := obj["reason"].(string)
+				if reason == "OK" {
+					_, _ = session.ChannelMessageSendReply(msg.ChannelID, "**✅ Successfully deleted!**", msg.Reference())
+				} else if strings.HasPrefix(reason, "You do not have an email account named") {
+					_, _ = session.ChannelMessageSendReply(msg.ChannelID, "**⚠️ Email account does not exist!**", msg.Reference())
+				} else {
+					_, _ = session.ChannelMessageSendReply(msg.ChannelID, "**❌ Deletion failed!**\n"+reason, msg.Reference())
+				}
+			}
+			return
+		}
+		marshal, _ := json.Marshal(result)
+		_, _ = session.ChannelMessageSendReply(msg.ChannelID, "**❌ Deletion failed!**\n"+string(marshal), msg.Reference())
+	}
+}
+
+func RequestDeleteEmail(email string, cpanelUsername string, cpanelPassword string) (*ns.CPanelResponse, error) {
 	parts := strings.Split(email, "@")
 	if len(parts) != 2 {
-		return "Invalid email address format"
+		return nil, fmt.Errorf("invalid email address format")
 	}
 	domain := parts[1]
 	localPart := parts[0]
@@ -90,7 +123,7 @@ func deleteEmail(email string, cpanelUsername string, cpanelPassword string) str
 	client := &http.Client{}
 	req, err := http.NewRequest("GET", deleteURL, nil)
 	if err != nil {
-		return fmt.Sprintf("Error creating request: %v", err)
+		return nil, fmt.Errorf("error creating request: %v", err)
 	}
 
 	authString := fmt.Sprintf("%s:%s", cpanelUsername, cpanelPassword)
@@ -99,7 +132,7 @@ func deleteEmail(email string, cpanelUsername string, cpanelPassword string) str
 
 	response, err := client.Do(req)
 	if err != nil {
-		return fmt.Sprintf("Error sending request: %v", err)
+		return nil, fmt.Errorf("error sending request: %v", err)
 	}
 	defer func(Body io.ReadCloser) {
 		err := Body.Close()
@@ -109,14 +142,18 @@ func deleteEmail(email string, cpanelUsername string, cpanelPassword string) str
 	}(response.Body)
 
 	if response.StatusCode != http.StatusOK {
-		return fmt.Sprintf("Request failed with status code %d", response.StatusCode)
+		return nil, fmt.Errorf("request failed with status code %d", response.StatusCode)
 	}
 
 	responseBody, err := io.ReadAll(response.Body)
 	if err != nil {
-		return fmt.Sprintf("Error reading response: %v", err)
+		return nil, fmt.Errorf("error reading response: %v", err)
 	}
 
-	// Modified line
-	return string(responseBody)
+	var cPanelResponse ns.CPanelResponse
+	err = json.Unmarshal(responseBody, &cPanelResponse)
+	if err != nil {
+		return nil, fmt.Errorf("**❌ Error parsing response!**\n```\n%s\n```", err.Error())
+	}
+	return &cPanelResponse, nil
 }

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/bwmarrin/discordgo"
 	"github.com/go-resty/resty/v2"
+	"regexp"
 	"strings"
 )
 
@@ -29,12 +30,55 @@ var NS = NSCommand{
 			{
 				Type:        discordgo.ApplicationCommandOptionString,
 				Name:        "nameservers",
-				Description: "The name servers to set",
+				Description: "The name servers to set (comma separated values)",
 			},
 		},
 	},
 }
 
+func RequestNameServerChange(apiUser, apiKey, userName, clientIP, sld, tld, nameservers string) (string, error) {
+	apiUrl := fmt.Sprintf("https://api.namecheap.com/xml.response?ApiUser=%s&ApiKey=%s&UserName=%s&Command=namecheap.domains.dns.setCustom&ClientIp=%s&SLD=%s&TLD=%s&NameServers=%s", apiUser, apiKey, userName, clientIP, sld, tld, nameservers)
+	resp, err := resty.New().R().Get(apiUrl)
+	if err != nil {
+		return "", fmt.Errorf("error making the request: %s", err.Error())
+	}
+	var apiResponse ns.ApiResponse
+	err = xml.Unmarshal(resp.Body(), &apiResponse)
+	if err != nil {
+		return "", fmt.Errorf("error parsing the response: %s", err.Error())
+	}
+
+	if apiResponse.Status == "ERROR" {
+		return "", fmt.Errorf("error in API response: %s", apiResponse.Status)
+	}
+	return "Name server changed successfully", nil
+}
+
+var nsRegex, _ = regexp.Compile("^(?P<domain>\\w+(?:\\.\\w+)+) +(?P<ns>(\\w+(?:\\.\\w+)+)(?:(?:, *| +)(\\w+(?:\\.\\w+)+))*)$")
+var nsR = regexp.MustCompile("\\w+(?:\\.\\w+)+")
+
+func (c *NSCommand) ExecuteDash(session *discordgo.Session, messageCreate *discordgo.MessageCreate, args string) {
+	apiUser := c.Config.ApiUser
+	apiKey := c.Config.ApiKey
+	userName := c.Config.UserName
+	clientIP := c.Config.ClientIP
+	matches := nsRegex.FindStringSubmatch(args)
+	if len(matches) == 0 {
+		_, _ = session.ChannelMessageSendReply(messageCreate.ChannelID, "Please provide valid arguments", messageCreate.Reference())
+		return
+	}
+	domain := matches[nsRegex.SubexpIndex("domain")]
+	nameServers := matches[nsRegex.SubexpIndex("ns")]
+	nsString := strings.Join(nsR.FindAllString(nameServers, -1), ",")
+	parts := strings.Split(domain, ".")
+	sld, tld := parts[0], parts[1]
+	res, err := RequestNameServerChange(apiUser, apiKey, userName, clientIP, sld, tld, nsString)
+	if err != nil {
+		_, _ = session.ChannelMessageSendReply(messageCreate.ChannelID, err.Error(), messageCreate.Reference())
+		return
+	}
+	_, _ = session.ChannelMessageSendReply(messageCreate.ChannelID, res, messageCreate.Reference())
+}
 func (c *NSCommand) Execute(session *discordgo.Session, interaction *discordgo.InteractionCreate) {
 	var err error
 	apiUser := c.Config.ApiUser
@@ -85,7 +129,15 @@ func (c *NSCommand) Execute(session *discordgo.Session, interaction *discordgo.I
 	}
 
 	sld, tld := parts[0], parts[1]
-	_url := fmt.Sprintf("https://api.namecheap.com/xml.response?ApiUser=%s&ApiKey=%s&UserName=%s&Command=namecheap.domains.dns.setCustom&ClientIp=%s&SLD=%s&TLD=%s&NameServers=%s", apiUser, apiKey, userName, clientIP, sld, tld, nameservers)
+	res, err := RequestNameServerChange(apiUser, apiKey, userName, clientIP, sld, tld, nameservers)
+	if err != nil {
+		content := err.Error()
+		_, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
+			Content: &content,
+		})
+		return
+	}
+	/*_url := fmt.Sprintf("https://api.namecheap.com/xml.response?ApiUser=%s&ApiKey=%s&UserName=%s&Command=namecheap.domains.dns.setCustom&ClientIp=%s&SLD=%s&TLD=%s&NameServers=%s", apiUser, apiKey, userName, clientIP, sld, tld, nameservers)
 	resp, err := resty.New().R().Get(_url)
 	if err != nil {
 		content := fmt.Sprintf("Error making the request: %s", err.Error())
@@ -111,10 +163,8 @@ func (c *NSCommand) Execute(session *discordgo.Session, interaction *discordgo.I
 			Content: &content,
 		})
 		return
-	}
-
-	content := fmt.Sprintf("Name server changed successfully")
+	}*/
 	_, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
-		Content: &content,
+		Content: &res,
 	})
 }

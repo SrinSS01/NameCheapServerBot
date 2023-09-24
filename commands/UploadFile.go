@@ -11,6 +11,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 )
 
@@ -39,6 +40,76 @@ var UploadFile = UploadFileCommand{
 	},
 }
 
+func RequestFileUpload(attachment *discordgo.MessageAttachment, domain string) (*ns.FileUploadResponse, error) {
+	res, err := http.DefaultClient.Get(attachment.URL)
+	if err != nil {
+		return nil, fmt.Errorf("error during http.Get(): %s", err.Error())
+	}
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile("file-1", attachment.Filename)
+	if err != nil {
+		return nil, fmt.Errorf("error during writer.CreateFormFile(): %s", err.Error())
+	}
+	_, err = io.Copy(part, res.Body)
+
+	escapedDomain := url.QueryEscape(domain)
+	uploadURL := fmt.Sprintf("https://199.188.203.195:2083/execute/Fileman/upload_files?dir=/home/swapped2/%s", escapedDomain)
+	response, err := util.MakeRequest("POST", uploadURL, writer.FormDataContentType(), body)
+	if err != nil {
+		return nil, fmt.Errorf("error during util.MakeRequest(): %s", err.Error())
+	}
+	var fileUploadResponse ns.FileUploadResponse
+	err = json.Unmarshal(response, &fileUploadResponse)
+	if err != nil {
+		return nil, fmt.Errorf("error during json.Unmarshal(): %s", err.Error())
+	}
+	if len(fileUploadResponse.Errors) > 0 {
+		var contentBuilder strings.Builder
+		for i, errors := range fileUploadResponse.Errors {
+			contentBuilder.WriteString(fmt.Sprintf("Error `%d`: ```\n%s```\n", i, errors))
+		}
+		return nil, fmt.Errorf(contentBuilder.String())
+	}
+	return &fileUploadResponse, nil
+}
+
+func (c *UploadFileCommand) ExecuteDash(session *discordgo.Session, messageCreate *discordgo.MessageCreate, domain string) {
+	matched, _ := regexp.MatchString("^\\w+(?:\\.\\w+)+$", domain)
+	if !matched {
+		_, _ = session.ChannelMessageSendReply(messageCreate.ChannelID, "Please provide a valid domain", messageCreate.Reference())
+		return
+	}
+	if len(messageCreate.Attachments) == 0 {
+		_, _ = session.ChannelMessageSendReply(messageCreate.ChannelID, "Please provide a file to upload", messageCreate.Reference())
+		return
+	}
+	attachment := messageCreate.Attachments[0]
+	response, err := RequestFileUpload(attachment, domain)
+	if err != nil {
+		_, _ = session.ChannelMessageSendReply(messageCreate.ChannelID, err.Error(), messageCreate.Reference())
+		return
+	}
+	if data, ok := response.Data.(map[string]interface{}); ok {
+		if uploads, ok := data["uploads"].([]interface{}); ok {
+			for _, upload := range uploads {
+				if upload, ok := upload.(map[string]interface{}); ok {
+					if upload["status"].(float64) == 0 {
+						_, _ = session.ChannelMessageSendReply(messageCreate.ChannelID, fmt.Sprintf("Failed to upload file: %s", upload["reason"].(string)), messageCreate.Reference())
+					} else {
+						_, _ = session.ChannelMessageSendReply(messageCreate.ChannelID, "Successfully uploaded file.", messageCreate.Reference())
+					}
+				} else {
+					_, _ = session.ChannelMessageSendReply(messageCreate.ChannelID, "Unable to cast `upload` to `map[string]interface{}`", messageCreate.Reference())
+				}
+			}
+		} else {
+			_, _ = session.ChannelMessageSendReply(messageCreate.ChannelID, "Unable to cast `uploads` to `[]interface{}`", messageCreate.Reference())
+		}
+	} else {
+		_, _ = session.ChannelMessageSendReply(messageCreate.ChannelID, "Unable to cast `data` to `map[string]interface{}`", messageCreate.Reference())
+	}
+}
 func (c *UploadFileCommand) Execute(session *discordgo.Session, interaction *discordgo.InteractionCreate) {
 	var err error
 	applicationCommandData := interaction.ApplicationCommandData()
@@ -68,9 +139,7 @@ func (c *UploadFileCommand) Execute(session *discordgo.Session, interaction *dis
 	}
 
 	attachment := applicationCommandData.Resolved.Attachments[fileId]
-	fileName := attachment.Filename
-	fileURL := attachment.URL
-	res, err := http.DefaultClient.Get(fileURL)
+	/*res, err := http.DefaultClient.Get(fileURL)
 	if err != nil {
 		editDeferredReply(session, interaction, fmt.Sprintf("Error during http.Get(): %s", err.Error()))
 		return
@@ -106,8 +175,16 @@ func (c *UploadFileCommand) Execute(session *discordgo.Session, interaction *dis
 		}
 		editDeferredReply(session, interaction, contentBuilder.String())
 		return
+	}*/
+	response, err := RequestFileUpload(attachment, domain)
+	if err != nil {
+		content := err.Error()
+		_, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
+			Content: &content,
+		})
+		return
 	}
-	if data, ok := fileUploadResponse.Data.(map[string]interface{}); ok {
+	if data, ok := response.Data.(map[string]interface{}); ok {
 		if uploads, ok := data["uploads"].([]interface{}); ok {
 			for _, upload := range uploads {
 				if upload, ok := upload.(map[string]interface{}); ok {

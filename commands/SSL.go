@@ -6,6 +6,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 )
 
@@ -26,6 +27,21 @@ var SSL = SSLCommand{
 			},
 		},
 	},
+}
+
+func (c *SSLCommand) ExecuteDash(session *discordgo.Session, messageCreate *discordgo.MessageCreate, domain string) {
+	matched, err := regexp.MatchString("^\\w+(?:\\.\\w+)+$", domain)
+	if err != nil || !matched {
+		_, _ = session.ChannelMessageSendReply(messageCreate.ChannelID, "Wrong domain format", messageCreate.Reference())
+		return
+	}
+	if IsSSLInstalled(domain) {
+		// SSL is installed
+		_, _ = session.ChannelMessageSendReply(messageCreate.ChannelID, fmt.Sprintf("SSL is installed on %s", domain), messageCreate.Reference())
+	} else {
+		// SSL is not installed
+		_, _ = session.ChannelMessageSendReply(messageCreate.ChannelID, fmt.Sprintf("SSL is not installed on %s", domain), messageCreate.Reference())
+	}
 }
 
 func (c *SSLCommand) Execute(session *discordgo.Session, interaction *discordgo.InteractionCreate) {

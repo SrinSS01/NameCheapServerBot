@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
@@ -62,7 +63,10 @@ var Monitor = MonitorCommand{
 	},
 }
 
-func RequestEmailTrack(client *http.Client, email, cPanelUserName, cPanelPassword string) (*ns.CPanelResponse, error) {
+var monitorRegex, _ = regexp.Compile("^(?P<subcmd>stop|start) +(?P<email>(?:[a-z0-9!#$%&'*+/=?^_{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_{|}~-]+)*|\"(?:[\\x01-\\x08\\x0b\\x0c\\x0e-\\x1f\\x21\\x23-\\x5b\\x5d-\\x7f]|\\\\[\\x01-\\x09\\x0b\\x0c\\x0e-\\x7f])*\")@(?:(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?|\\[(?:(?:(2(5[0-5]|[0-4][0-9])|1[0-9][0-9]|[1-9]?[0-9]))\\.){3}(?:(2(5[0-5]|[0-4][0-9])|1[0-9][0-9]|[1-9]?[0-9])|[a-z0-9-]*[a-z0-9]:(?:[\\x01-\\x08\\x0b\\x0c\\x0e-\\x1f\\x21-\\x5a\\x53-\\x7f]|\\\\[\\x01-\\x09\\x0b\\x0c\\x0e-\\x7f])+)\\]))$")
+
+func RequestEmailTrack(email, cPanelUserName, cPanelPassword string) (*ns.CPanelResponse, error) {
+	client := http.Client{}
 	apiUrl := "https://wch-llc.com:2083/json-api/cpanel?cpanel_jsonapi_user=user&cpanel_jsonapi_apiversion=2&cpanel_jsonapi_module=EmailTrack&cpanel_jsonapi_func=search&success=1&defer=0&recipient=" + url.QueryEscape(email)
 
 	req, err := http.NewRequest("GET", apiUrl, nil)
@@ -100,6 +104,107 @@ func RequestEmailTrack(client *http.Client, email, cPanelUserName, cPanelPasswor
 	}
 	return &emailTrackResponse, nil
 }
+func (m *MonitorCommand) ExecuteDash(session *discordgo.Session, messageCreate *discordgo.MessageCreate, args string) {
+	matches := monitorRegex.FindStringSubmatch(args)
+	if len(matches) == 0 {
+		_, _ = session.ChannelMessageSendReply(messageCreate.ChannelID, "Please provide valid arguments", messageCreate.Reference())
+		return
+	}
+	subcmd := matches[monitorRegex.SubexpIndex("subcmd")]
+	email := matches[monitorRegex.SubexpIndex("email")]
+	switch subcmd {
+	case "stop":
+		monitorTaskScheduler := monitor[email]
+		if monitorTaskScheduler == nil {
+			_, _ = session.ChannelMessageSendReply(messageCreate.ChannelID, "email not monitored yet", messageCreate.Reference())
+			return
+		}
+		_, _ = session.ChannelMessageSendReply(messageCreate.ChannelID, "Stopped monitoring "+email, messageCreate.Reference())
+		monitorTaskScheduler.StopTask <- true
+		break
+	case "start":
+		if monitor[email] != nil {
+			_, _ = session.ChannelMessageSendReply(messageCreate.ChannelID, "Already monitoring this mail", messageCreate.Reference())
+			return
+		}
+		cPanelUserName := m.Config.BasicAuth.Username
+		cPanelPassword := m.Config.BasicAuth.Password
+		msg, _ := session.ChannelMessageSendReply(messageCreate.ChannelID, "Starting to monitor", messageCreate.Reference())
+		result, err := RequestEmailTrack(email, cPanelUserName, cPanelPassword)
+		if err != nil {
+			_, _ = session.ChannelMessageSendReply(msg.ChannelID, err.Error(), msg.Reference())
+			return
+		}
+		stop := make(chan bool)
+
+		ticker := time.NewTicker(time.Second * 5)
+
+		task := func(msgOld *discordgo.Message, session *discordgo.Session) {
+			for {
+				select {
+				case <-stop:
+					ticker.Stop()
+					delete(monitor, email)
+					return
+				case <-ticker.C:
+					req, err := RequestEmailTrack(email, cPanelUserName, cPanelPassword)
+					if err != nil {
+						return
+					}
+					mts := monitor[email]
+					if datas, ok := req.CPanelResult.Data.([]interface{}); ok {
+						newMsgCount := len(datas)
+						if mts.MessageCount < newMsgCount {
+							mts.MessageCount = newMsgCount
+							data := datas[0]
+							if dataObj, ok := data.(map[string]interface{}); ok {
+								sender := dataObj["email"].(string)
+								recipient := dataObj["recipient"].(string)
+								senderip := dataObj["senderip"].(string)
+								senderhost := dataObj["senderhost"].(string)
+								actionunixtime := dataObj["actionunixtime"].(float64)
+								msgOld, _ = session.ChannelMessageSendEmbedReply(msgOld.ChannelID, &discordgo.MessageEmbed{
+									Title: "Email Recieved!",
+									Color: 0x00FF00,
+									Fields: []*discordgo.MessageEmbedField{
+										{
+											Name:  "To",
+											Value: fmt.Sprintf("`%s`", recipient),
+										},
+										{
+											Name:  "From",
+											Value: fmt.Sprintf("`%s`", sender),
+										},
+										{
+											Name:  "Sender IP",
+											Value: fmt.Sprintf("`%s`", senderip),
+										},
+										{
+											Name:  "Sender Host",
+											Value: fmt.Sprintf("`%s`", senderhost),
+										},
+										{
+											Name:  "Action Time",
+											Value: fmt.Sprintf("<t:%d>", int64(actionunixtime)),
+										},
+									},
+								}, msgOld.Reference())
+							}
+						}
+					}
+				}
+			}
+		}
+		if datas, ok := result.CPanelResult.Data.([]interface{}); ok {
+			monitor[email] = &MonitorTaskScheduler{
+				MessageCount: len(datas),
+				Task:         task,
+				StopTask:     stop,
+			}
+		}
+		task(msg, session)
+	}
+}
 
 func (m *MonitorCommand) Execute(session *discordgo.Session, interaction *discordgo.InteractionCreate) {
 	_ = session.InteractionRespond(interaction.Interaction, &discordgo.InteractionResponse{
@@ -125,14 +230,20 @@ func (m *MonitorCommand) Execute(session *discordgo.Session, interaction *discor
 		monitorTaskScheduler.StopTask <- true
 		break
 	case "start":
+		content := "Already monitoring this mail"
+		if monitor[email] != nil {
+			_, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
+				Content: &content,
+			})
+			return
+		}
 		cPanelUserName := m.Config.BasicAuth.Username
 		cPanelPassword := m.Config.BasicAuth.Password
-		content := "Starting to monitor"
+		content = "Starting to monitor"
 		msg, _ := session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
 			Content: &content,
 		})
-		client := &http.Client{}
-		result, err := RequestEmailTrack(client, email, cPanelUserName, cPanelPassword)
+		result, err := RequestEmailTrack(email, cPanelUserName, cPanelPassword)
 		if err != nil {
 			_, _ = session.ChannelMessageSendReply(msg.ChannelID, err.Error(), msg.Reference())
 			return
@@ -146,9 +257,10 @@ func (m *MonitorCommand) Execute(session *discordgo.Session, interaction *discor
 				select {
 				case <-stop:
 					ticker.Stop()
+					delete(monitor, email)
 					return
 				case <-ticker.C:
-					req, err := RequestEmailTrack(client, email, cPanelUserName, cPanelPassword)
+					req, err := RequestEmailTrack(email, cPanelUserName, cPanelPassword)
 					if err != nil {
 						return
 					}

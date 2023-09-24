@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 )
 
 type DeleteFileCommand struct {
@@ -38,6 +39,63 @@ var DeleteFile = DeleteFileCommand{
 	},
 }
 
+var argsRegex, _ = regexp.Compile("^(?P<domain>\\w+(?:\\.\\w+)+) +(?P<fileName>[\\w\\-. ]+)$")
+
+func RequestDeleteFile(fileName, cPanelUserName, cPanelPassword string) (string, error) {
+	var cPanelResponse ns.CPanelResponse
+	apiUrl := fmt.Sprintf("https://wch-llc.com:2083/json-api/cpanel?cpanel_jsonapi_user=user&cpanel_jsonapi_apiversion=2&cpanel_jsonapi_module=Fileman&cpanel_jsonapi_func=fileop&op=trash&sourcefiles=%s&doubledecode=1", fileName)
+	client := &http.Client{}
+	req, err := http.NewRequest("GET", apiUrl, nil)
+	if err != nil {
+		return "", fmt.Errorf("❌ Error creating request: %v", err.Error())
+	}
+	authString := fmt.Sprintf("%s:%s", cPanelUserName, cPanelPassword)
+	authHeader := fmt.Sprintf("Basic %s", base64.StdEncoding.EncodeToString([]byte(authString)))
+	req.Header.Add("Authorization", authHeader)
+	response, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("❌ Error creating request: %v", err.Error())
+	}
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(response.Body)
+	if response.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("❌ Request failed with status code %d", response.StatusCode)
+	}
+	responseBody, err := io.ReadAll(response.Body)
+	if err != nil {
+		return "", fmt.Errorf("❌ Error reading response: %s", err.Error())
+	}
+	err = json.Unmarshal(responseBody, &cPanelResponse)
+	if err != nil {
+		return "", fmt.Errorf("❌ Error parsing response")
+	}
+	if len(cPanelResponse.CPanelResult.Error) != 0 {
+		return "", fmt.Errorf("⚠️%s", cPanelResponse.CPanelResult.Error)
+	}
+	return "✅ Successfully deleted", nil
+}
+func (d *DeleteFileCommand) ExecuteDash(session *discordgo.Session, messageCreate *discordgo.MessageCreate, args string) {
+	matches := argsRegex.FindStringSubmatch(args)
+	if len(matches) == 0 {
+		_, _ = session.ChannelMessageSendReply(messageCreate.ChannelID, "Please provide valid arguments", messageCreate.Reference())
+		return
+	}
+	domain := matches[argsRegex.SubexpIndex("domain")]
+	fileName := fmt.Sprintf("/home/swapped2/%s/%s", url.QueryEscape(domain), matches[argsRegex.SubexpIndex("fileName")])
+	cPanelUserName := d.Config.BasicAuth.Username
+	cPanelPassword := d.Config.BasicAuth.Password
+	res, err := RequestDeleteFile(fileName, cPanelUserName, cPanelPassword)
+	if err != nil {
+		_, _ = session.ChannelMessageSendReply(messageCreate.ChannelID, err.Error(), messageCreate.Reference())
+		return
+	}
+	_, _ = session.ChannelMessageSendReply(messageCreate.ChannelID, res, messageCreate.Reference())
+}
+
 func (d *DeleteFileCommand) Execute(session *discordgo.Session, interaction *discordgo.InteractionCreate) {
 	commandData := interaction.ApplicationCommandData()
 	domain := commandData.Options[0].StringValue()
@@ -47,7 +105,7 @@ func (d *DeleteFileCommand) Execute(session *discordgo.Session, interaction *dis
 	_ = session.InteractionRespond(interaction.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
 	})
-	var cPanelResponse ns.CPanelResponse
+	/*var cPanelResponse ns.CPanelResponse
 	apiUrl := fmt.Sprintf("https://wch-llc.com:2083/json-api/cpanel?cpanel_jsonapi_user=user&cpanel_jsonapi_apiversion=2&cpanel_jsonapi_module=Fileman&cpanel_jsonapi_func=fileop&op=trash&sourcefiles=%s&doubledecode=1", fileName)
 	client := &http.Client{}
 
@@ -106,9 +164,16 @@ func (d *DeleteFileCommand) Execute(session *discordgo.Session, interaction *dis
 			Content: &content,
 		})
 		return
+	}*/
+	res, err := RequestDeleteFile(fileName, cPanelUserName, cPanelPassword)
+	if err != nil {
+		content := err.Error()
+		_, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
+			Content: &content,
+		})
+		return
 	}
-	content := "✅ Successfully deleted"
 	_, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
-		Content: &content,
+		Content: &res,
 	})
 }
