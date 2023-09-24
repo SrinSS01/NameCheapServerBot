@@ -86,36 +86,6 @@ func (c *AutomateCommand) ExecuteDash(session *discordgo.Session, messageCreate 
 		_, _ = session.ChannelMessageSendReply(messageCreate.ChannelID, err.Error(), messageCreate.Reference())
 		return
 	}
-	/*_url := fmt.Sprintf("https://api.namecheap.com/xml.response?ApiUser=%s&ApiKey=%s&UserName=%s&Command=namecheap.domains.check&ClientIp=%s&DomainList=%s", apiUser, apiKey, userName, clientIP, domain)
-	err =
-	if err != nil {
-		return
-	}
-	resp, err := resty.New().R().Get(_url)
-	if err != nil {
-		content := fmt.Sprintf("Error making the request: %s", err.Error())
-		_, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
-			Content: &content,
-		})
-		return
-	}
-	var apiResponse ns.ApiResponse
-	resBody := resp.Body()
-	err = xml.Unmarshal(resBody, &apiResponse)
-	if err != nil {
-		content := fmt.Sprintf("Error parsing the response: %s", err.Error())
-		_, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
-			Content: &content,
-		})
-		return
-	}
-	if apiResponse.Status != "OK" {
-		content := fmt.Sprintf("Error in API response: \n```\n%s\n```", string(resBody))
-		_, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
-			Content: &content,
-		})
-		return
-	}*/
 	for _, result := range apiResponse.CommandResponse.DomainCheckData {
 		availability := "available"
 		if !result.Available {
@@ -138,22 +108,6 @@ func (c *AutomateCommand) ExecuteDash(session *discordgo.Session, messageCreate 
 						return
 					}
 					msg, _ = session.ChannelMessageSendReply(msg.ChannelID, res, msg.Reference())
-					/*_url := fmt.Sprintf("https://api.namecheap.com/xml.response?ApiUser=%s&ApiKey=%s&UserName=%s&Command=namecheap.domains.dns.setCustom&ClientIp=%s&SLD=%s&TLD=%s&NameServers=%s", apiUser, apiKey, userName, clientIP, sld, tld, nameservers)
-					resp, err := resty.New().R().Get(_url)
-					if err != nil {
-						msg, _ = session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("Error making the request: %s", err.Error()), msg.Reference())
-						return
-					}
-					err = xml.Unmarshal(resp.Body(), &apiResponse)
-					if err != nil {
-						msg, _ = session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("Error parsing the response: %s", err.Error()), msg.Reference())
-						return
-					}
-					if apiResponse.Status == "ERROR" {
-						msg, _ = session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("Error in API response: %s", apiResponse.Status), msg.Reference())
-						return
-					}
-					msg, _ = session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("Name server changed successfully"), msg.Reference())*/
 				}
 
 				// addon
