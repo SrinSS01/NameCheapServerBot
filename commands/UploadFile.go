@@ -75,7 +75,7 @@ func RequestFileUpload(attachment *discordgo.MessageAttachment, domain string) (
 }
 
 func (c *UploadFileCommand) ExecuteDash(session *discordgo.Session, messageCreate *discordgo.MessageCreate, domain string) {
-	matched, _ := regexp.MatchString("^\\w+(?:\\.\\w+)+$", domain)
+	matched, _ := regexp.MatchString("^\\w+(?:\\.\\w+)+$", strings.TrimSpace(domain))
 	if !matched {
 		_, _ = session.ChannelMessageSendReply(messageCreate.ChannelID, "Please provide a valid domain", messageCreate.Reference())
 		return

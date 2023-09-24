@@ -66,6 +66,7 @@ var (
 		},
 		commands.Automate.Command.Name: {
 			Slash: commands.Automate.Execute,
+			Dash:  commands.Automate.ExecuteDash,
 		},
 		commands.CheckDomain.Command.Name: {
 			Slash: commands.CheckDomain.Execute,

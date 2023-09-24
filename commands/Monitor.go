@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
@@ -105,7 +106,7 @@ func RequestEmailTrack(email, cPanelUserName, cPanelPassword string) (*ns.CPanel
 	return &emailTrackResponse, nil
 }
 func (m *MonitorCommand) ExecuteDash(session *discordgo.Session, messageCreate *discordgo.MessageCreate, args string) {
-	matches := monitorRegex.FindStringSubmatch(args)
+	matches := monitorRegex.FindStringSubmatch(strings.TrimSpace(args))
 	if len(matches) == 0 {
 		_, _ = session.ChannelMessageSendReply(messageCreate.ChannelID, "Please provide valid arguments", messageCreate.Reference())
 		return

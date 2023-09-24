@@ -55,21 +55,21 @@ func RequestNameServerChange(apiUser, apiKey, userName, clientIP, sld, tld, name
 }
 
 var nsRegex, _ = regexp.Compile("^(?P<domain>\\w+(?:\\.\\w+)+) +(?P<ns>(\\w+(?:\\.\\w+)+)(?:(?:, *| +)(\\w+(?:\\.\\w+)+))*)$")
-var nsR = regexp.MustCompile("\\w+(?:\\.\\w+)+")
+var NsR = regexp.MustCompile("\\w+(?:\\.\\w+)+")
 
 func (c *NSCommand) ExecuteDash(session *discordgo.Session, messageCreate *discordgo.MessageCreate, args string) {
 	apiUser := c.Config.ApiUser
 	apiKey := c.Config.ApiKey
 	userName := c.Config.UserName
 	clientIP := c.Config.ClientIP
-	matches := nsRegex.FindStringSubmatch(args)
+	matches := nsRegex.FindStringSubmatch(strings.TrimSpace(args))
 	if len(matches) == 0 {
 		_, _ = session.ChannelMessageSendReply(messageCreate.ChannelID, "Please provide valid arguments", messageCreate.Reference())
 		return
 	}
 	domain := matches[nsRegex.SubexpIndex("domain")]
 	nameServers := matches[nsRegex.SubexpIndex("ns")]
-	nsString := strings.Join(nsR.FindAllString(nameServers, -1), ",")
+	nsString := strings.Join(NsR.FindAllString(nameServers, -1), ",")
 	parts := strings.Split(domain, ".")
 	sld, tld := parts[0], parts[1]
 	res, err := RequestNameServerChange(apiUser, apiKey, userName, clientIP, sld, tld, nsString)

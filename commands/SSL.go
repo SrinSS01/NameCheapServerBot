@@ -30,7 +30,7 @@ var SSL = SSLCommand{
 }
 
 func (c *SSLCommand) ExecuteDash(session *discordgo.Session, messageCreate *discordgo.MessageCreate, domain string) {
-	matched, err := regexp.MatchString("^\\w+(?:\\.\\w+)+$", domain)
+	matched, err := regexp.MatchString("^\\w+(?:\\.\\w+)+$", strings.TrimSpace(domain))
 	if err != nil || !matched {
 		_, _ = session.ChannelMessageSendReply(messageCreate.ChannelID, "Wrong domain format", messageCreate.Reference())
 		return

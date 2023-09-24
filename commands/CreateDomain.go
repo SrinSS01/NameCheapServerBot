@@ -31,7 +31,7 @@ var CreateDomain = CreateDomainCommand{
 	},
 }
 
-func RequestCreateDomain(apiUser, apiKey, userName, clientIP, domain string) (*ns.ApiResponse, error) {
+/*func RequestCreateDomain(apiUser, apiKey, userName, clientIP, domain string) (*ns.ApiResponse, error) {
 	apiUrl := fmt.Sprintf("https://api.namecheap.com/xml.response?ApiUser=%s&ApiKey=%s&UserName=%s&Command=namecheap.domains.check&ClientIp=%s&DomainList=%s", apiUser, apiKey, userName, clientIP, domain)
 	resp, err := resty.New().R().Get(apiUrl)
 	if err != nil {
@@ -47,19 +47,19 @@ func RequestCreateDomain(apiUser, apiKey, userName, clientIP, domain string) (*n
 		return nil, fmt.Errorf("error in API response: \n```xml\n%s\n```", string(body))
 	}
 	return &apiResponse, nil
-}
+}*/
 
 func (c *CreateDomainCommand) ExecuteDash(s *discordgo.Session, m *discordgo.MessageCreate, domain string) {
 	apiUser := c.Config.ApiUser
 	apiKey := c.Config.ApiKey
 	userName := c.Config.UserName
 	clientIP := c.Config.ClientIP
-	matched, err := regexp.MatchString("^\\w+(?:\\.\\w+)+$", domain)
+	matched, err := regexp.MatchString("^\\w+(?:\\.\\w+)+$", strings.TrimSpace(domain))
 	if err != nil || !matched {
 		_, _ = s.ChannelMessageSendReply(m.ChannelID, "Wrong domain format", m.Reference())
 		return
 	}
-	apiResponse, err := RequestCreateDomain(apiUser, apiKey, userName, clientIP, domain)
+	apiResponse, err := RequestDomainCheck(apiUser, apiKey, userName, clientIP, domain)
 	if err != nil {
 		_, _ = s.ChannelMessageSendReply(m.ChannelID, err.Error(), m.Reference())
 		return
@@ -77,7 +77,7 @@ func (c *CreateDomainCommand) ExecuteDash(s *discordgo.Session, m *discordgo.Mes
 			if err != nil {
 				return
 			}
-			RegisterDomain(c.Config, result.Domain, msg, s)
+			RequestRegisterDomain(c.Config, result.Domain, msg, s)
 		}
 	}
 }
@@ -138,7 +138,7 @@ func (c *CreateDomainCommand) Execute(session *discordgo.Session, interaction *d
 	//	})
 	//	return
 	//}
-	apiResponse, err := RequestCreateDomain(apiUser, apiKey, userName, clientIP, domain)
+	apiResponse, err := RequestDomainCheck(apiUser, apiKey, userName, clientIP, domain)
 	if err != nil {
 		content := err.Error()
 		_, _ = session.InteractionResponseEdit(interaction.Interaction, &discordgo.WebhookEdit{
@@ -162,12 +162,12 @@ func (c *CreateDomainCommand) Execute(session *discordgo.Session, interaction *d
 			if err != nil {
 				return
 			}
-			RegisterDomain(c.Config, result.Domain, msg, session)
+			RequestRegisterDomain(c.Config, result.Domain, msg, session)
 		}
 	}
 }
 
-func RegisterDomain(c *config.Config, domain string, msg *discordgo.Message, session *discordgo.Session) bool {
+func RequestRegisterDomain(c *config.Config, domain string, msg *discordgo.Message, session *discordgo.Session) bool {
 	// Implement the domain registration API call here using the HTTP POST method.
 	// Make an HTTP request to the NameCheap API for domain registration.
 

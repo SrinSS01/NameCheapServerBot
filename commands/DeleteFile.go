@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strings"
 )
 
 type DeleteFileCommand struct {
@@ -79,7 +80,7 @@ func RequestDeleteFile(fileName, cPanelUserName, cPanelPassword string) (string,
 	return "✅ Successfully deleted", nil
 }
 func (d *DeleteFileCommand) ExecuteDash(session *discordgo.Session, messageCreate *discordgo.MessageCreate, args string) {
-	matches := argsRegex.FindStringSubmatch(args)
+	matches := argsRegex.FindStringSubmatch(strings.TrimSpace(args))
 	if len(matches) == 0 {
 		_, _ = session.ChannelMessageSendReply(messageCreate.ChannelID, "Please provide valid arguments", messageCreate.Reference())
 		return

@@ -37,14 +37,12 @@ func RequestDomainCheck(apiUser, apiKey, userName, clientIP, domain string) (*ns
 	if err != nil {
 		return nil, fmt.Errorf("Error making the request: %s", err.Error())
 	}
-
 	var apiResponse ns.ApiResponse
 	body := resp.Body()
 	err = xml.Unmarshal(body, &apiResponse)
 	if err != nil {
 		return nil, fmt.Errorf("Error parsing the response: %s", err.Error())
 	}
-
 	if apiResponse.Status != "OK" {
 		return nil, fmt.Errorf("Error in API response: \n```xml\n%s\n```", string(body))
 	}
@@ -56,7 +54,7 @@ func (c *CheckDomainCommand) ExecuteDash(s *discordgo.Session, m *discordgo.Mess
 	apiKey := c.Config.ApiKey
 	userName := c.Config.UserName
 	clientIP := c.Config.ClientIP
-	matched, err := regexp.MatchString("^\\w+(?:\\.\\w+)+$", domain)
+	matched, err := regexp.MatchString("^\\w+(?:\\.\\w+)+$", strings.TrimSpace(domain))
 	if err != nil || !matched {
 		_, _ = s.ChannelMessageSendReply(m.ChannelID, "Wrong domain format", m.Reference())
 		return
