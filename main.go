@@ -203,13 +203,13 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if len(matches) == 0 {
 		return
 	}
-	_, _ = s.ChannelMessageSendReply(m.ChannelID, "Processing...", m.Reference())
 	name := matches[regex.SubexpIndex("name")]
 	args := matches[regex.SubexpIndex("args")]
 	f := commandHandlers[name].Dash
 	if f == nil {
 		return
 	}
+	_, _ = s.ChannelMessageSendReply(m.ChannelID, "Processing...", m.Reference())
 	f(s, m, args)
 }
 
