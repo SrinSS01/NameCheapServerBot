@@ -39,7 +39,7 @@ var (
 		commands.DeleteFile.Command,
 		commands.Monitor.Command,
 	}
-	commandHandlers = map[string]Execute{
+	commandHandlers = map[string]*Execute{
 		commands.CreateDomain.Command.Name: {
 			Slash: commands.CreateDomain.Execute,
 			Dash:  commands.CreateDomain.ExecuteDash,
@@ -205,12 +205,12 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	}
 	name := matches[regex.SubexpIndex("name")]
 	args := matches[regex.SubexpIndex("args")]
-	f := commandHandlers[name].Dash
+	f := commandHandlers[name]
 	if f == nil {
 		return
 	}
 	_, _ = s.ChannelMessageSendReply(m.ChannelID, "Processing...", m.Reference())
-	f(s, m, args)
+	f.Dash(s, m, args)
 }
 
 func main() {
