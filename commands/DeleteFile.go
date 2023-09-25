@@ -40,7 +40,7 @@ var DeleteFile = DeleteFileCommand{
 	},
 }
 
-var argsRegex, _ = regexp.Compile("^(?P<domain>\\w+(?:\\.\\w+)+) +(?P<fileName>[\\w\\-. ]+)$")
+var argsRegex, _ = regexp.Compile("^(?P<domain>[a-z0-9!#$%&'*+/=?^_{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_{|}~-]+)*|\"(?:[\\x01-\\x08\\x0b\\x0c\\x0e-\\x1f\\x21\\x23-\\x5b\\x5d-\\x7f]|\\\\[\\x01-\\x09\\x0b\\x0c\\x0e-\\x7f])*\") +(?P<fileName>[\\w\\-. ]+)$")
 
 func RequestDeleteFile(fileName, cPanelUserName, cPanelPassword string) (string, error) {
 	var cPanelResponse ns.CPanelResponse

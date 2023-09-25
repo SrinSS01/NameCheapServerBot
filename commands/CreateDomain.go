@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"github.com/bwmarrin/discordgo"
 	"github.com/go-resty/resty/v2"
-	"regexp"
 	"strings"
 )
 
@@ -54,8 +53,8 @@ func (c *CreateDomainCommand) ExecuteDash(s *discordgo.Session, m *discordgo.Mes
 	apiKey := c.Config.ApiKey
 	userName := c.Config.UserName
 	clientIP := c.Config.ClientIP
-	matched, err := regexp.MatchString("^\\w+(?:\\.\\w+)+$", strings.TrimSpace(domain))
-	if err != nil || !matched {
+	matched := DomainRegex.MatchString(strings.TrimSpace(domain))
+	if !matched {
 		_, _ = s.ChannelMessageSendReply(m.ChannelID, "Wrong domain format", m.Reference())
 		return
 	}

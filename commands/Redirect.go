@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"regexp"
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
@@ -64,7 +63,7 @@ func RequestAddRedirect(username, password, domain string) (*ns.RedirectCommandR
 	return &response, nil
 }
 func (c *RedirectCommand) ExecuteDash(session *discordgo.Session, messageCreate *discordgo.MessageCreate, domain string) {
-	matched, _ := regexp.MatchString("^\\w+(?:\\.\\w+)+$", strings.TrimSpace(domain))
+	matched := DomainRegex.MatchString(strings.TrimSpace(domain))
 	if !matched {
 		_, _ = session.ChannelMessageSendReply(messageCreate.ChannelID, "Please provide a valid domain name", messageCreate.Reference())
 		return

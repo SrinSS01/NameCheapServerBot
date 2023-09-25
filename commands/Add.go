@@ -30,6 +30,8 @@ var Add = AddCommand{
 	},
 }
 
+var DomainRegex = regexp.MustCompile("^[a-z0-9!#$%&'*+/=?^_{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_{|}~-]+)*|\"(?:[\\x01-\\x08\\x0b\\x0c\\x0e-\\x1f\\x21\\x23-\\x5b\\x5d-\\x7f]|\\\\[\\x01-\\x09\\x0b\\x0c\\x0e-\\x7f])*\"$")
+
 func RequestAddDomain(domain string) (string, error) {
 	escapedDomain := url.QueryEscape(domain)
 	apiUrl := fmt.Sprintf("https://199.188.203.195:2083/json-api/cpanel?cpanel_jsonapi_func=addaddondomain&cpanel_jsonapi_module=AddonDomain&cpanel_jsonapi_version=2&newdomain=%s&subdomain=%s&dir=/home/swapped2/%s", escapedDomain, escapedDomain, escapedDomain)
@@ -69,8 +71,8 @@ func RequestAddDomain(domain string) (string, error) {
 }
 
 func (a *AddCommand) ExecuteDash(s *discordgo.Session, m *discordgo.MessageCreate, domain string) {
-	matched, err := regexp.MatchString("^\\w+(?:\\.\\w+)+$", strings.TrimSpace(domain))
-	if err != nil || !matched {
+	matched := DomainRegex.MatchString(strings.TrimSpace(domain))
+	if !matched {
 		_, _ = s.ChannelMessageSendReply(m.ChannelID, "Wrong domain format", m.Reference())
 		return
 	}
