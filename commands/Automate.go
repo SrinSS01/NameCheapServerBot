@@ -87,14 +87,14 @@ func (c *AutomateCommand) ExecuteDash(session *discordgo.Session, messageCreate 
 		return
 	}
 	for _, result := range apiResponse.CommandResponse.DomainCheckData {
-		availability := "available"
+		availability := "Available 🟢"
 		if !result.Available {
-			availability = "unavailable"
+			availability = "Unavailable 🔴"
 		}
 		msg, _ := session.ChannelMessageSendReply(messageCreate.ChannelID, fmt.Sprintf("Domain: %s, Availability: %s", result.Domain, availability), messageCreate.Reference())
 
 		if result.Available {
-			msg, err := session.ChannelMessageSendReply(msg.ChannelID, "Registering domain...", msg.Reference())
+			msg, err := session.ChannelMessageSendReply(msg.ChannelID, "🔄 Registering domain...", msg.Reference())
 			if err != nil {
 				return
 			}
@@ -132,7 +132,7 @@ func (c *AutomateCommand) ExecuteDash(session *discordgo.Session, messageCreate 
 								_, _ = session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("Failed to create email account: %s", data.(map[string]interface{})["reason"].(string)), msg.Reference())
 								emailSuccess = false
 							} else {
-								_, _ = session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("Successfully created email account: %s", localPart+"@"+domain), msg.Reference())
+								_, _ = session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("✅Successfully created email account: %s", localPart+"@"+domain), msg.Reference())
 								emailSuccess = true
 							}
 						}
@@ -141,7 +141,7 @@ func (c *AutomateCommand) ExecuteDash(session *discordgo.Session, messageCreate 
 							_, _ = session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("Failed to create email account: %s", data["reason"].(string)), msg.Reference())
 							emailSuccess = false
 						} else {
-							_, _ = session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("Successfully created email account: %s", localPart+"@"+domain), msg.Reference())
+							_, _ = session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("✅Successfully created email account: %s", localPart+"@"+domain), msg.Reference())
 							emailSuccess = true
 						}
 					} else {
@@ -162,7 +162,7 @@ func (c *AutomateCommand) ExecuteDash(session *discordgo.Session, messageCreate 
 						}
 					} else {
 						// SSL is not installed
-						_, err := session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("SSL is not installed on %s", domain), msg.Reference())
+						_, err := session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("⏳ SSL is being installed for https://%s **(5 Minutes Aprox)**", domain), msg.Reference())
 						if err != nil {
 							fmt.Println("Failed to respond to interaction:", err)
 						}
@@ -184,7 +184,7 @@ func (c *AutomateCommand) ExecuteDash(session *discordgo.Session, messageCreate 
 										if upload["status"].(float64) == 0 {
 											_, _ = session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("Failed to upload file: %s", upload["reason"].(string)), msg.Reference())
 										} else {
-											_, _ = session.ChannelMessageSendReply(msg.ChannelID, "Successfully uploaded file.", msg.Reference())
+											_, _ = session.ChannelMessageSendReply(msg.ChannelID, "📤 Successfully uploaded file.", msg.Reference())
 										}
 									} else {
 										_, _ = session.ChannelMessageSendReply(msg.ChannelID, "Unable to cast `upload` to `map[string]interface{}`", msg.Reference())
@@ -199,7 +199,7 @@ func (c *AutomateCommand) ExecuteDash(session *discordgo.Session, messageCreate 
 					}
 				}
 
-				// redirect
+				/*// redirect
 				authUser := c.Config.BasicAuth.Username
 				authPass := c.Config.BasicAuth.Password
 				response, err := RequestAddRedirect(authUser, authPass, domain)
@@ -225,7 +225,7 @@ func (c *AutomateCommand) ExecuteDash(session *discordgo.Session, messageCreate 
 						errorMessage.WriteString(strings.Join(response.Errors, " "))
 					}
 					_, _ = session.ChannelMessageSendReply(msg.ChannelID, errorMessage.String(), msg.Reference())
-				}
+				}*/
 			}
 		}
 	}
@@ -331,9 +331,9 @@ func (c *AutomateCommand) Execute(session *discordgo.Session, interaction *disco
 		return
 	}*/
 	for _, result := range apiResponse.CommandResponse.DomainCheckData {
-		availability := "available"
+		availability := "Available 🟢"
 		if !result.Available {
-			availability = "unavailable"
+			availability = "Unavailable 🔴"
 		}
 		content := fmt.Sprintf("Domain: %s, Availability: %s", result.Domain, availability)
 
@@ -342,7 +342,7 @@ func (c *AutomateCommand) Execute(session *discordgo.Session, interaction *disco
 		})
 
 		if result.Available {
-			msg, err := session.ChannelMessageSendReply(msg.ChannelID, "Registering domain...", msg.Reference())
+			msg, err := session.ChannelMessageSendReply(msg.ChannelID, "🔄 Registering domain...", msg.Reference())
 			if err != nil {
 				return
 			}
@@ -396,7 +396,7 @@ func (c *AutomateCommand) Execute(session *discordgo.Session, interaction *disco
 								_, _ = session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("Failed to create email account: %s", data.(map[string]interface{})["reason"].(string)), msg.Reference())
 								emailSuccess = false
 							} else {
-								_, _ = session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("Successfully created email account: %s", localPart+"@"+domain), msg.Reference())
+								_, _ = session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("✅Successfully created email account: %s", localPart+"@"+domain), msg.Reference())
 								emailSuccess = true
 							}
 						}
@@ -405,7 +405,7 @@ func (c *AutomateCommand) Execute(session *discordgo.Session, interaction *disco
 							_, _ = session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("Failed to create email account: %s", data["reason"].(string)), msg.Reference())
 							emailSuccess = false
 						} else {
-							_, _ = session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("Successfully created email account: %s", localPart+"@"+domain), msg.Reference())
+							_, _ = session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("✅Successfully created email account: %s", localPart+"@"+domain), msg.Reference())
 							emailSuccess = true
 						}
 					} else {
@@ -426,7 +426,7 @@ func (c *AutomateCommand) Execute(session *discordgo.Session, interaction *disco
 						}
 					} else {
 						// SSL is not installed
-						_, err := session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("SSL is not installed on %s", domain), msg.Reference())
+						_, err := session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("⏳ SSL is being installed for https://%s **(5 Minutes Aprox)**", domain), msg.Reference())
 						if err != nil {
 							fmt.Println("Failed to respond to interaction:", err)
 						}
@@ -448,7 +448,7 @@ func (c *AutomateCommand) Execute(session *discordgo.Session, interaction *disco
 									if upload["status"].(float64) == 0 {
 										_, _ = session.ChannelMessageSendReply(msg.ChannelID, fmt.Sprintf("Failed to upload file: %s", upload["reason"].(string)), msg.Reference())
 									} else {
-										_, _ = session.ChannelMessageSendReply(msg.ChannelID, "Successfully uploaded file.", msg.Reference())
+										_, _ = session.ChannelMessageSendReply(msg.ChannelID, "📤 Successfully uploaded file.", msg.Reference())
 									}
 								} else {
 									_, _ = session.ChannelMessageSendReply(msg.ChannelID, "Unable to cast `upload` to `map[string]interface{}`", msg.Reference())
@@ -462,7 +462,7 @@ func (c *AutomateCommand) Execute(session *discordgo.Session, interaction *disco
 					}
 				}
 
-				// redirect
+				/*// redirect
 				authUser := c.Config.BasicAuth.Username
 				authPass := c.Config.BasicAuth.Password
 				response, err := RequestAddRedirect(authUser, authPass, domain)
@@ -488,7 +488,7 @@ func (c *AutomateCommand) Execute(session *discordgo.Session, interaction *disco
 						errorMessage.WriteString(strings.Join(response.Errors, " "))
 					}
 					_, _ = session.ChannelMessageSendReply(msg.ChannelID, errorMessage.String(), msg.Reference())
-				}
+				}*/
 			}
 		}
 	}

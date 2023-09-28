@@ -59,7 +59,7 @@ func RequestAddDomain(domain string) (string, error) {
 					builder.WriteString("Failed to add domain: " + data.(map[string]interface{})["reason"].(string))
 					builder.WriteByte('\n')
 				}
-				builder.WriteString("Successfully added domain: " + domain)
+				builder.WriteString("✅ Successfully added domain: " + domain)
 			}
 			return builder.String(), nil
 		} else {

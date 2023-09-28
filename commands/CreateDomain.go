@@ -65,14 +65,14 @@ func (c *CreateDomainCommand) ExecuteDash(s *discordgo.Session, m *discordgo.Mes
 	}
 
 	for _, result := range apiResponse.CommandResponse.DomainCheckData {
-		availability := "available"
+		availability := "Available ✅"
 		if !result.Available {
-			availability = "unavailable"
+			availability = "Unavailable ❌"
 		}
 		msg, _ := s.ChannelMessageSendReply(m.ChannelID, fmt.Sprintf("Domain: %s, Availability: %s", result.Domain, availability), m.Reference())
 
 		if result.Available {
-			msg, err := s.ChannelMessageSendReply(msg.ChannelID, "Registering domain...", msg.Reference())
+			msg, err := s.ChannelMessageSendReply(msg.ChannelID, "🔄 Registering domain...", msg.Reference())
 			if err != nil {
 				return
 			}
@@ -146,9 +146,9 @@ func (c *CreateDomainCommand) Execute(session *discordgo.Session, interaction *d
 		return
 	}
 	for _, result := range apiResponse.CommandResponse.DomainCheckData {
-		availability := "available"
+		availability := "Available ✅"
 		if !result.Available {
-			availability = "unavailable"
+			availability = "Unavailable ❌"
 		}
 		content := fmt.Sprintf("Domain: %s, Availability: %s", result.Domain, availability)
 
@@ -157,7 +157,7 @@ func (c *CreateDomainCommand) Execute(session *discordgo.Session, interaction *d
 		})
 
 		if result.Available {
-			msg, err := session.ChannelMessageSendReply(msg.ChannelID, "Registering domain...", msg.Reference())
+			msg, err := session.ChannelMessageSendReply(msg.ChannelID, "🔄 Registering domain...", msg.Reference())
 			if err != nil {
 				return
 			}
@@ -296,7 +296,7 @@ func RequestRegisterDomain(c *config.Config, domain string, msg *discordgo.Messa
 		return false
 	}
 	if apiResponse.CommandResponse.DomainCreateResult.Registered {
-		content := fmt.Sprintf("Domain %s has been registered successfully!\n", domain)
+		content := fmt.Sprintf("✳️ Domain %s has been registered successfully!\n", domain)
 		_, _ = session.ChannelMessageSendReply(msg.ChannelID, content, msg.Reference())
 		return true
 	} else {
